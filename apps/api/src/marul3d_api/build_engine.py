@@ -102,6 +102,45 @@ def _apply_boolean(
     raise BuildError(f"Unsupported boolean operation: {operation}")
 
 
+def _apply_hole_pattern(
+    current: cq.Workplane,
+    feature: HolePatternFeature,
+) -> cq.Workplane:
+    """Cut global -Z holes without requiring a planar support face.
+
+    Attaching a workplane to ``faces(">Z")`` fails when the upper face is
+    spherical or otherwise curved. Explicit cutting cylinders preserve the
+    feature's global XY point semantics and work for both planar and curved
+    bodies.
+    """
+    bounds = current.val().BoundingBox()
+    margin = max(1.0, feature.diameter, bounds.zlen * 0.05)
+    start_z = bounds.zmax + margin
+    cut_depth = (
+        bounds.zlen + 2.0 * margin
+        if feature.depth is None
+        else feature.depth + margin
+    )
+
+    for point in feature.points:
+        tool = (
+            cq.Workplane("XY", origin=(point.x, point.y, start_z))
+            .circle(feature.diameter / 2.0)
+            .extrude(-cut_depth)
+        )
+        before_volume = current.val().Volume()
+        candidate = current.cut(tool)
+        removed_volume = before_volume - candidate.val().Volume()
+        tolerance = max(1e-7, before_volume * 1e-10)
+        if removed_volume <= tolerance:
+            raise BuildError(
+                f"Hole at ({point.x:g}, {point.y:g}) does not intersect the current "
+                "solid; move the point inside the body's XY footprint"
+            )
+        current = candidate
+    return current
+
+
 def _run_custom_feature(
     feature: CustomCadQueryFeature,
     current: cq.Workplane | None,
@@ -167,13 +206,7 @@ def build_document(document: CadDocument) -> cq.Workplane:
                 elif isinstance(feature, HolePatternFeature):
                     if current is None:
                         raise BuildError("A hole pattern requires an existing solid")
-                    points = [(point.x, point.y) for point in feature.points]
-                    workplane = current.faces(">Z").workplane().pushPoints(points)
-                    current = (
-                        workplane.hole(feature.diameter, feature.depth)
-                        if feature.depth is not None
-                        else workplane.hole(feature.diameter)
-                    )
+                    current = _apply_hole_pattern(current, feature)
                 elif isinstance(feature, FilletFeature):
                     if current is None:
                         raise BuildError("A fillet requires an existing solid")

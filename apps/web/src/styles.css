@@ -55,6 +55,9 @@ button { color: inherit; }
   background: var(--accent);
   border-radius: 7px;
 }
+.brand-logo { overflow: hidden; background: transparent; border-radius: 0; }
+.brand-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.loading-logo { width: 54px; height: 54px; }
 .document-title { justify-self: center; display: flex; align-items: center; gap: 7px; color: #c8cdc5; font-size: 13px; }
 .document-title small { color: var(--muted-2); font: 10px "JetBrains Mono", monospace; }
 .document-title i { color: #4f564d; font-style: normal; }

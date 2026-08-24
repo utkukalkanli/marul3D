@@ -316,7 +316,7 @@ export default function App() {
   if (initializing || !hierarchy) {
     return (
       <main className="loading-screen">
-        <div className="brand-mark"><Layers3 size={26} /></div>
+        <div className="brand-mark brand-logo loading-logo"><img src="/marul3d-logo.png" alt="" /></div>
         <LoaderCircle className="spin" size={22} />
         <span>Loading local workspaces…</span>
         {error && <strong>{error}</strong>}
@@ -340,7 +340,7 @@ export default function App() {
     <div className="app-shell">
       <header className="titlebar">
         <div className="wordmark">
-          <span className="brand-mark"><Layers3 size={17} /></span>
+          <span className="brand-mark brand-logo"><img src="/marul3d-logo.png" alt="" /></span>
           <strong>marul<span>3D</span></strong>
         </div>
         <div className="document-title">

@@ -50,7 +50,7 @@ class CylinderFeature(FeatureBase):
 class HolePatternFeature(FeatureBase):
     type: Literal["hole_pattern"] = "hole_pattern"
     diameter: float = Field(gt=0)
-    points: list[Point2D]
+    points: list[Point2D] = Field(min_length=1)
     depth: float | None = Field(default=None, gt=0)
 
 

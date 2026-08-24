@@ -19,6 +19,11 @@ Rules:
 - Prefer standard features: box, cylinder, hole_pattern, and fillet.
 - Features execute in list order and must produce a valid solid.
 - A box or cylinder with operation=new must establish the initial solid.
+- hole_pattern points use global XY coordinates and cut along the -Z axis. They
+  work on planar or curved bodies. Every point must be inside the body's XY
+  footprint. Omit depth for through holes.
+- When replacing the main body topology (for example, box to sphere), update or
+  remove dependent features whose points or selectors no longer intersect it.
 - Use custom_cadquery only when standard features cannot express the geometry.
 - custom_cadquery source receives `cq`, optional `base`, and a `params` mapping.
   It must assign a CadQuery Workplane or Shape to `result`. Never import modules,
