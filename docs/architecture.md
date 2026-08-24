@@ -7,6 +7,18 @@ service owns provider credentials, project files, geometry builds, imports,
 and exports. Provider adapters receive a compact document description rather
 than raw CAD files.
 
+## Local hierarchy
+
+The persistent catalog follows `Workspace → Project → CAD object`. A workspace
+can contain many projects, and a project can contain many independently editable
+objects. Each object owns a `CadDocument`, STL preview, imported assets, exports,
+and an in-memory undo/redo stack. All document, generation, history, import,
+preview, and export routes are scoped by workspace, project, and object IDs.
+
+The hierarchy manager migrates the legacy single document into a default
+workspace and project. Deletion removes entries from the catalog and moves their
+directories into local `.trash` storage instead of erasing them immediately.
+
 ## Parametric document
 
 `CadDocument` is the source of truth. Its ordered features use stable string

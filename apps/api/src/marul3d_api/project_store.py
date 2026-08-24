@@ -19,7 +19,11 @@ from marul3d_api.models import (
 
 
 class ProjectStore:
-    def __init__(self, root: Path | None = None) -> None:
+    def __init__(
+        self,
+        root: Path | None = None,
+        initial_document: CadDocument | None = None,
+    ) -> None:
         configured = os.getenv("MARUL3D_DATA_DIR")
         self.root = root or (Path(configured) if configured else user_data_path("marul3D"))
         self.root.mkdir(parents=True, exist_ok=True)
@@ -32,12 +36,15 @@ class ProjectStore:
         self._lock = threading.RLock()
         self._undo: list[CadDocument] = []
         self._redo: list[CadDocument] = []
+        self._initial_document = (
+            initial_document.model_copy(deep=True) if initial_document else None
+        )
         self._document = self._load()
         self._ensure_preview()
 
     def _load(self) -> CadDocument:
         if not self.document_path.exists():
-            return sample_document()
+            return self._initial_document or sample_document()
         return CadDocument.model_validate_json(self.document_path.read_text(encoding="utf-8"))
 
     def _write_document(self) -> None:
@@ -62,6 +69,12 @@ class ProjectStore:
     def document(self) -> CadDocument:
         with self._lock:
             return self._document.model_copy(deep=True)
+
+    def rename(self, name: str) -> CadDocument:
+        with self._lock:
+            self._document.name = name
+            self._write_document()
+            return self.document()
 
     def apply(self, candidate: CadDocument, *, record_history: bool = True) -> CadDocument:
         with self._lock:

@@ -3,8 +3,8 @@ import { Canvas, useLoader } from "@react-three/fiber";
 import { Suspense } from "react";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
-function PartMesh({ revision }: { revision: number }) {
-  const geometry = useLoader(STLLoader, `/api/preview.stl?revision=${revision}`);
+function PartMesh({ previewUrl }: { previewUrl: string }) {
+  const geometry = useLoader(STLLoader, previewUrl);
   geometry.computeVertexNormals();
   return (
     <Bounds fit clip observe margin={1.35}>
@@ -24,7 +24,7 @@ function LoadingPart() {
   );
 }
 
-export function CadViewport({ revision }: { revision: number }) {
+export function CadViewport({ previewUrl }: { previewUrl: string }) {
   return (
     <div className="viewport-canvas" data-testid="cad-viewport">
       <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
@@ -40,7 +40,7 @@ export function CadViewport({ revision }: { revision: number }) {
         />
         <directionalLight intensity={0.8} position={[-35, 15, -30]} color="#b7d0ff" />
         <Suspense fallback={<LoadingPart />}>
-          <PartMesh revision={revision} />
+          <PartMesh previewUrl={previewUrl} />
         </Suspense>
         <Grid
           infiniteGrid

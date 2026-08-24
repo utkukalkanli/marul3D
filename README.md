@@ -6,6 +6,9 @@ and provider-neutral hosted model adapters.
 
 ## MVP capabilities
 
+- Organize local CAD data as workspaces containing projects containing objects.
+- Create, rename, select, and recoverably delete every hierarchy level.
+- Keep independent geometry, previews, imports, exports, and edit history per object.
 - Create parametric parts from natural-language prompts.
 - Edit an ordered feature history and rebuild geometry transactionally.
 - Fall back to restricted custom CadQuery features for open-ended geometry.
@@ -38,6 +41,10 @@ apps/web  React, TypeScript, and Three.js workspace
 apps/api  FastAPI, CadQuery, provider adapters, persistence, and Keychain
 docs      Architecture and product notes
 ```
+
+The application migrates the original single CAD document into `My Workspace / First
+Project` on first launch. Deleted hierarchy entries are retained under the local app
+data directory's `.trash` folder so they can be recovered manually.
 
 ## Privacy model
 

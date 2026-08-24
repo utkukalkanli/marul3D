@@ -124,6 +124,35 @@ class BuildResponse(StrictModel):
     summary: str | None = None
 
 
+class EntityNameRequest(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class CadObjectSummary(StrictModel):
+    id: str
+    name: str
+    revision: int
+
+
+class ProjectSummary(StrictModel):
+    id: str
+    name: str
+    objects: list[CadObjectSummary]
+
+
+class WorkspaceSummary(StrictModel):
+    id: str
+    name: str
+    projects: list[ProjectSummary]
+
+
+class HierarchyResponse(StrictModel):
+    workspaces: list[WorkspaceSummary]
+    selected_workspace_id: str | None = None
+    selected_project_id: str | None = None
+    selected_object_id: str | None = None
+
+
 def sample_document() -> CadDocument:
     return CadDocument(
         id="starter-part",

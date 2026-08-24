@@ -1,4 +1,10 @@
-import type { BuildResponse, CadDocument, ProviderStatus } from "./types";
+import type {
+  BuildResponse,
+  CadDocument,
+  HierarchyResponse,
+  ObjectRef,
+  ProviderStatus,
+} from "./types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
@@ -9,16 +15,58 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function named(method: "POST" | "PUT", name: string): RequestInit {
+  return {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  };
+}
+
+function objectBase(ref: ObjectRef): string {
+  return `/api/workspaces/${ref.workspaceId}/projects/${ref.projectId}/objects/${ref.objectId}`;
+}
+
 export const api = {
-  document: () => request<BuildResponse>("/api/document"),
-  updateDocument: (document: CadDocument) =>
-    request<BuildResponse>("/api/document", {
+  hierarchy: () => request<HierarchyResponse>("/api/workspaces"),
+  createWorkspace: (name: string) =>
+    request<HierarchyResponse>("/api/workspaces", named("POST", name)),
+  renameWorkspace: (workspaceId: string, name: string) =>
+    request<HierarchyResponse>(`/api/workspaces/${workspaceId}`, named("PUT", name)),
+  deleteWorkspace: (workspaceId: string) =>
+    request<HierarchyResponse>(`/api/workspaces/${workspaceId}`, { method: "DELETE" }),
+  createProject: (workspaceId: string, name: string) =>
+    request<HierarchyResponse>(
+      `/api/workspaces/${workspaceId}/projects`,
+      named("POST", name),
+    ),
+  renameProject: (workspaceId: string, projectId: string, name: string) =>
+    request<HierarchyResponse>(
+      `/api/workspaces/${workspaceId}/projects/${projectId}`,
+      named("PUT", name),
+    ),
+  deleteProject: (workspaceId: string, projectId: string) =>
+    request<HierarchyResponse>(`/api/workspaces/${workspaceId}/projects/${projectId}`, {
+      method: "DELETE",
+    }),
+  createObject: (workspaceId: string, projectId: string, name: string) =>
+    request<HierarchyResponse>(
+      `/api/workspaces/${workspaceId}/projects/${projectId}/objects`,
+      named("POST", name),
+    ),
+  renameObject: (ref: ObjectRef, name: string) =>
+    request<HierarchyResponse>(objectBase(ref), named("PUT", name)),
+  deleteObject: (ref: ObjectRef) =>
+    request<HierarchyResponse>(objectBase(ref), { method: "DELETE" }),
+  document: (ref: ObjectRef) => request<BuildResponse>(`${objectBase(ref)}/document`),
+  updateDocument: (ref: ObjectRef, document: CadDocument) =>
+    request<BuildResponse>(`${objectBase(ref)}/document`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(document),
     }),
-  generate: (prompt: string, model: string) =>
-    request<BuildResponse>("/api/generate", {
+  generate: (ref: ObjectRef, prompt: string, model: string) =>
+    request<BuildResponse>(`${objectBase(ref)}/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, provider: "openai", model }),
@@ -30,11 +78,17 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: "openai", api_key: apiKey }),
     }),
-  importModel: async (file: File) => {
+  importModel: async (ref: ObjectRef, file: File) => {
     const body = new FormData();
     body.append("file", file);
-    return request<BuildResponse>("/api/import", { method: "POST", body });
+    return request<BuildResponse>(`${objectBase(ref)}/import`, { method: "POST", body });
   },
-  undo: () => request<BuildResponse>("/api/history/undo", { method: "POST" }),
-  redo: () => request<BuildResponse>("/api/history/redo", { method: "POST" }),
+  undo: (ref: ObjectRef) =>
+    request<BuildResponse>(`${objectBase(ref)}/history/undo`, { method: "POST" }),
+  redo: (ref: ObjectRef) =>
+    request<BuildResponse>(`${objectBase(ref)}/history/redo`, { method: "POST" }),
+  previewUrl: (ref: ObjectRef, revision: number) =>
+    `${objectBase(ref)}/preview.stl?revision=${revision}`,
+  exportUrl: (ref: ObjectRef, extension: "step" | "stl") =>
+    `${objectBase(ref)}/export/${extension}`,
 };

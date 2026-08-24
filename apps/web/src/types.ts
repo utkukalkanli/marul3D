@@ -80,3 +80,34 @@ export type ProviderStatus = {
   configured: boolean;
   storage: "keychain" | "environment" | "unavailable";
 };
+
+export type CadObjectSummary = {
+  id: string;
+  name: string;
+  revision: number;
+};
+
+export type ProjectSummary = {
+  id: string;
+  name: string;
+  objects: CadObjectSummary[];
+};
+
+export type WorkspaceSummary = {
+  id: string;
+  name: string;
+  projects: ProjectSummary[];
+};
+
+export type HierarchyResponse = {
+  workspaces: WorkspaceSummary[];
+  selected_workspace_id: string | null;
+  selected_project_id: string | null;
+  selected_object_id: string | null;
+};
+
+export type ObjectRef = {
+  workspaceId: string;
+  projectId: string;
+  objectId: string;
+};
