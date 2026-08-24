@@ -85,8 +85,17 @@ test("renders the CAD workspace", async () => {
 
   expect((await screen.findAllByText("Base plate")).length).toBeGreaterThan(0);
   expect(screen.getByLabelText("CAD prompt")).toBeInTheDocument();
-  fireEvent.click(screen.getByLabelText("Toggle file tree"));
+  const historyHeading = screen.getByText("FEATURE HISTORY").closest(".feature-history-heading");
+  expect(historyHeading).toContainElement(screen.getByLabelText("Undo"));
+  expect(historyHeading).toContainElement(screen.getByLabelText("Redo"));
+
+  fireEvent.change(screen.getByLabelText("Display units"), { target: { value: "inch" } });
+  expect(screen.getByLabelText("Width")).toHaveValue(1.9685);
+
+  fireEvent.click(screen.getByLabelText("Close CAD explorer"));
   expect(document.querySelector(".workspace")).toHaveClass("sidebar-collapsed");
+  fireEvent.click(screen.getByLabelText("Open CAD explorer"));
+  expect(document.querySelector(".workspace")).not.toHaveClass("sidebar-collapsed");
   expect(screen.getByLabelText("Resize prompt panel")).toBeInTheDocument();
 });
 

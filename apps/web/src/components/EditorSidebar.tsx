@@ -6,7 +6,10 @@ import {
   Cylinder,
   FileBox,
   FolderOpen,
+  PanelLeftClose,
   Radius,
+  Redo2,
+  Undo2,
 } from "lucide-react";
 import type { Feature, HierarchyResponse, ObjectRef } from "../types";
 
@@ -28,6 +31,9 @@ export function EditorSidebar({
   disabled,
   onSelectObject,
   onSelectFeature,
+  onToggle,
+  onUndo,
+  onRedo,
 }: {
   hierarchy: HierarchyResponse;
   selection: ObjectRef;
@@ -36,10 +42,24 @@ export function EditorSidebar({
   disabled: boolean;
   onSelectObject: (ref: ObjectRef) => void;
   onSelectFeature: (id: string) => void;
+  onToggle: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
 }) {
   return (
     <aside className="explorer-panel editor-sidebar">
-      <div className="panel-heading">CAD EXPLORER</div>
+      <div className="panel-heading explorer-heading">
+        <span>CAD EXPLORER</span>
+        <button
+          className="panel-action"
+          type="button"
+          aria-label="Close CAD explorer"
+          title="Close CAD explorer"
+          onClick={onToggle}
+        >
+          <PanelLeftClose size={15} />
+        </button>
+      </div>
       <div className="compact-tree">
         {hierarchy.workspaces.map((workspace) => (
           <div className="compact-workspace" key={workspace.id}>
@@ -73,7 +93,31 @@ export function EditorSidebar({
         ))}
       </div>
 
-      <div className="tree-label feature-divider">FEATURE HISTORY</div>
+      <div className="tree-label feature-divider feature-history-heading">
+        <span>FEATURE HISTORY</span>
+        <div className="feature-history-actions">
+          <button
+            className="panel-action"
+            type="button"
+            aria-label="Undo"
+            title="Undo document revision"
+            disabled={disabled}
+            onClick={onUndo}
+          >
+            <Undo2 size={14} />
+          </button>
+          <button
+            className="panel-action"
+            type="button"
+            aria-label="Redo"
+            title="Redo document revision"
+            disabled={disabled}
+            onClick={onRedo}
+          >
+            <Redo2 size={14} />
+          </button>
+        </div>
+      </div>
       <div className="feature-tree editor-features">
         {features.map((feature, index) => {
           const Icon = icons[feature.type];

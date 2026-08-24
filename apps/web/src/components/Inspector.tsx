@@ -1,7 +1,19 @@
 import { SlidersHorizontal } from "lucide-react";
-import type { Feature } from "../types";
+import type { DisplayUnit, Feature } from "../types";
 
 type EditableNumber = { key: string; label: string; value: number; unit?: string };
+
+const millimetresPerUnit: Record<DisplayUnit, number> = {
+  mm: 1,
+  cm: 10,
+  inch: 25.4,
+};
+
+function displayValue(value: number, unit: string | undefined, displayUnit: DisplayUnit) {
+  if (unit !== "mm") return value;
+  const precision = displayUnit === "inch" ? 4 : displayUnit === "cm" ? 3 : 3;
+  return Number((value / millimetresPerUnit[displayUnit]).toFixed(precision));
+}
 
 function numericFields(feature: Feature): EditableNumber[] {
   switch (feature.type) {
@@ -34,51 +46,72 @@ function numericFields(feature: Feature): EditableNumber[] {
 
 export function Inspector({
   feature,
+  displayUnit,
   disabled,
+  onDisplayUnitChange,
   onNumericChange,
 }: {
   feature: Feature | null;
+  displayUnit: DisplayUnit;
   disabled: boolean;
+  onDisplayUnitChange: (unit: DisplayUnit) => void;
   onNumericChange: (key: string, value: number) => void;
 }) {
   return (
     <aside className="inspector-panel">
       <div className="panel-heading inspector-title">
         <span>PROPERTIES</span>
-        <SlidersHorizontal size={14} />
+        <div className="inspector-heading-actions">
+          <select
+            className="unit-select"
+            aria-label="Display units"
+            value={displayUnit}
+            onChange={(event) => onDisplayUnitChange(event.target.value as DisplayUnit)}
+          >
+            <option value="mm">mm</option>
+            <option value="cm">cm</option>
+            <option value="inch">inch</option>
+          </select>
+          <SlidersHorizontal size={14} />
+        </div>
       </div>
       {!feature ? (
         <div className="empty-inspector">Select a feature to edit its parameters.</div>
       ) : (
         <div className="inspector-body">
-          <div className="feature-kind">{feature.type.replaceAll("_", " ")}</div>
+          <div className="feature-kind">
+            {feature.type === "custom_cadquery" ? "custom geometry" : feature.type.replaceAll("_", " ")}
+          </div>
           <h2>{feature.name}</h2>
           <div className="property-section-title">Parameters</div>
-          {numericFields(feature).map((field) => (
-            <label className="property-row" key={field.key}>
-              <span>{field.label}</span>
-              <span className="number-input-wrap">
-                <input
-                  aria-label={field.label}
-                  type="number"
-                  min="0.001"
-                  step="0.5"
-                  value={field.value}
-                  disabled={disabled}
-                  onChange={(event) => onNumericChange(field.key, Number(event.target.value))}
-                />
-                {field.unit && <em>{field.unit}</em>}
-              </span>
-            </label>
-          ))}
+          {numericFields(feature).map((field) => {
+            const isLength = field.unit === "mm";
+            return (
+              <label className="property-row" key={field.key}>
+                <span>{field.label}</span>
+                <span className="number-input-wrap">
+                  <input
+                    aria-label={field.label}
+                    type="number"
+                    min="0.001"
+                    step={displayUnit === "inch" && isLength ? "0.01" : "0.1"}
+                    value={displayValue(field.value, field.unit, displayUnit)}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      onNumericChange(
+                        field.key,
+                        isLength ? value * millimetresPerUnit[displayUnit] : value,
+                      );
+                    }}
+                  />
+                  {field.unit && <em>{isLength ? displayUnit : field.unit}</em>}
+                </span>
+              </label>
+            );
+          })}
           {feature.type === "hole_pattern" && (
             <div className="property-note">{feature.points.length} hole locations</div>
-          )}
-          {feature.type === "custom_cadquery" && (
-            <details className="source-details">
-              <summary>CadQuery source</summary>
-              <pre>{feature.source}</pre>
-            </details>
           )}
           {numericFields(feature).length === 0 && feature.type !== "custom_cadquery" && (
             <div className="property-note">This imported base has no native parameters.</div>

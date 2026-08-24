@@ -1,5 +1,6 @@
 export type Point2D = { x: number; y: number };
 export type NamedParameter = { name: string; value: number; unit: string };
+export type DisplayUnit = "mm" | "cm" | "inch";
 
 type FeatureBase = {
   id: string;

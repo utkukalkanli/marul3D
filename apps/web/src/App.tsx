@@ -6,13 +6,10 @@ import {
   LayoutGrid,
   Layers3,
   LoaderCircle,
-  PanelLeftClose,
   PanelLeftOpen,
   Play,
-  Redo2,
   Settings,
   Sparkles,
-  Undo2,
 } from "lucide-react";
 import {
   ChangeEvent,
@@ -34,6 +31,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import type {
   BuildResponse,
   CadDocument,
+  DisplayUnit,
   HierarchyResponse,
   ObjectRef,
 } from "./types";
@@ -59,6 +57,15 @@ function selectedRef(hierarchy: HierarchyResponse): ObjectRef | null {
   };
 }
 
+function savedDisplayUnit(): DisplayUnit {
+  try {
+    const saved = window.localStorage?.getItem("marul3d.displayUnit");
+    return saved === "cm" || saved === "inch" ? saved : "mm";
+  } catch {
+    return "mm";
+  }
+}
+
 export default function App() {
   const [hierarchy, setHierarchy] = useState<HierarchyResponse | null>(null);
   const [selection, setSelection] = useState<ObjectRef | null>(null);
@@ -70,6 +77,7 @@ export default function App() {
   const [view, setView] = useState<"library" | "editor">("library");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [promptHeight, setPromptHeight] = useState(218);
+  const [displayUnit, setDisplayUnit] = useState<DisplayUnit>(savedDisplayUnit);
   const promptResize = useRef<{ startY: number; startHeight: number } | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -359,11 +367,6 @@ export default function App() {
         <nav className="title-actions">
           {view === "editor" && (
             <>
-              <button type="button" className="icon-button" aria-label="Toggle file tree" onClick={() => setSidebarOpen((current) => !current)}>{sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}</button>
-              <span className="title-divider" />
-              <button type="button" className="icon-button" aria-label="Undo" disabled={busy || !document} onClick={() => historyAction("undo")}><Undo2 size={16} /></button>
-              <button type="button" className="icon-button" aria-label="Redo" disabled={busy || !document} onClick={() => historyAction("redo")}><Redo2 size={16} /></button>
-              <span className="title-divider" />
               <button type="button" className="toolbar-button" disabled={busy || !document} onClick={() => importInput.current?.click()}><FileUp size={15} /> Import</button>
               <div className="export-menu">
                 <a className={`toolbar-button ${!exportStep ? "disabled" : ""}`} href={exportStep}><Download size={15} /> STEP</a>
@@ -419,7 +422,32 @@ export default function App() {
           />
         ) : document && selection ? (
           <>
-            <EditorSidebar hierarchy={hierarchy} selection={selection} features={document.features} selectedId={selectedId} disabled={busy} onSelectObject={(ref) => void selectObject(ref)} onSelectFeature={setSelectedId} />
+            {sidebarOpen ? (
+              <EditorSidebar
+                hierarchy={hierarchy}
+                selection={selection}
+                features={document.features}
+                selectedId={selectedId}
+                disabled={busy}
+                onSelectObject={(ref) => void selectObject(ref)}
+                onSelectFeature={setSelectedId}
+                onToggle={() => setSidebarOpen(false)}
+                onUndo={() => void historyAction("undo")}
+                onRedo={() => void historyAction("redo")}
+              />
+            ) : (
+              <aside className="explorer-reopen" aria-label="CAD explorer collapsed">
+                <button
+                  className="panel-action"
+                  type="button"
+                  aria-label="Open CAD explorer"
+                  title="Open CAD explorer"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <PanelLeftOpen size={16} />
+                </button>
+              </aside>
+            )}
             <main
               className="center-workspace"
               style={{ "--prompt-height": `${promptHeight}px` } as CSSProperties}
@@ -503,14 +531,27 @@ export default function App() {
             {error && <div className="error-banner" role="alert">{error}</div>}
           </section>
             </main>
-            <Inspector feature={selectedFeature} disabled={busy} onNumericChange={updateFeatureNumber} />
+            <Inspector
+              feature={selectedFeature}
+              displayUnit={displayUnit}
+              disabled={busy}
+              onDisplayUnitChange={(unit) => {
+                setDisplayUnit(unit);
+                try {
+                  window.localStorage?.setItem("marul3d.displayUnit", unit);
+                } catch {
+                  // Storage can be unavailable in privacy-restricted browser contexts.
+                }
+              }}
+              onNumericChange={updateFeatureNumber}
+            />
           </>
         ) : null}
       </div>
 
       <footer className="statusbar">
         <span><span className="status-dot" /> Local engine</span>
-        <span>CadQuery · OpenCascade</span>
+        <span>Parametric B-rep engine</span>
         <span className="status-spacer" />
         <span>{hierarchy.workspaces.length} workspaces</span>
         <span>{projectCount} projects</span>
