@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  Box,
   Boxes,
   FolderOpen,
   Pencil,
@@ -9,10 +8,12 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { HierarchyResponse, ObjectRef } from "../types";
+import { ObjectCardPreview } from "./ObjectCardPreview";
 
 type LibraryProps = {
   hierarchy: HierarchyResponse;
   disabled: boolean;
+  previewUrl: (ref: ObjectRef, revision: number) => string;
   onSelectObject: (ref: ObjectRef) => void;
   onCreateWorkspace: () => void;
   onRenameWorkspace: (id: string, currentName: string) => void;
@@ -179,7 +180,10 @@ export function LibraryBrowser(props: LibraryProps) {
                 if (event.key === "Enter" || event.key === " ") props.onSelectObject(ref);
               }}
             >
-              <div className="object-card-preview"><Box size={34} /></div>
+              <ObjectCardPreview
+                previewUrl={props.previewUrl(ref, item.revision)}
+                name={item.name}
+              />
               <div className="card-topline object-card-topline">
                 <div className="card-copy"><strong>{item.name}</strong><span>Revision {item.revision}</span></div>
                 <CardActions renameLabel={`Rename object ${item.name}`} deleteLabel={`Delete object ${item.name}`} disabled={props.disabled} onRename={() => props.onRenameObject(ref, item.name)} onDelete={() => props.onDeleteObject(ref, item.name)} />

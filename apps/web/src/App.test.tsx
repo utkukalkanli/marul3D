@@ -7,6 +7,12 @@ vi.mock("./components/CadViewport", () => ({
   CadViewport: () => <div data-testid="cad-viewport" />,
 }));
 
+vi.mock("./components/ObjectCardPreview", () => ({
+  ObjectCardPreview: ({ name }: { name: string }) => (
+    <div aria-label={`Rotating 3D preview of ${name}`} />
+  ),
+}));
+
 vi.mock("./api", () => ({
   api: {
     hierarchy: vi.fn().mockResolvedValue({
@@ -81,6 +87,7 @@ test("renders the CAD workspace", async () => {
   render(<App />);
   fireEvent.click(await screen.findByText("Design Workspace"));
   fireEvent.click(await screen.findByText("Robot Project"));
+  expect(screen.getByLabelText("Rotating 3D preview of Test plate")).toBeInTheDocument();
   fireEvent.click(await screen.findByText("Test plate"));
 
   expect((await screen.findAllByText("Base plate")).length).toBeGreaterThan(0);

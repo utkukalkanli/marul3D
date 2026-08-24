@@ -169,8 +169,10 @@ button { color: inherit; }
 .create-card { align-items: center; justify-content: center; gap: 11px; border-style: dashed; color: #7a8277; background: #15181588; }
 .create-card strong { font-size: 12px; font-weight: 500; }
 .create-icon { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #3a4237; border-radius: 50%; color: var(--accent); background: #20271d; }
-.object-card { min-height: 225px; padding-top: 12px; }
-.object-card-preview { display: grid; place-items: center; height: 95px; margin: -4px -9px 0; border: 1px solid #2d332b; border-radius: 8px; color: #718363; background: radial-gradient(circle, #2a3524, #151815 70%); }
+.object-card { min-height: 258px; padding-top: 12px; }
+.object-card-preview { position: relative; height: 128px; margin: -4px -9px 0; overflow: hidden; border: 1px solid #2d332b; border-radius: 8px; color: #718363; background: radial-gradient(circle at 50% 38%, #2b3725, #151815 72%); pointer-events: none; }
+.object-card-preview canvas { display: block; width: 100% !important; height: 100% !important; }
+.preview-badge { position: absolute; left: 7px; bottom: 6px; padding: 3px 5px; border: 1px solid #3b4834; border-radius: 4px; color: #8e9c83; background: #121612b8; font: 7px "JetBrains Mono", monospace; letter-spacing: .5px; }
 .object-card-topline { margin-top: 2px; }
 .object-card-topline .card-copy { flex: 1; }
 

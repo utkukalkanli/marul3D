@@ -400,6 +400,7 @@ export default function App() {
           <LibraryBrowser
             hierarchy={hierarchy}
             disabled={busy}
+            previewUrl={api.previewUrl}
             onSelectObject={(ref) => void selectObject(ref)}
             onCreateWorkspace={() => {
               setEntityDialog({ kind: "name", entity: "workspace", title: "Create a new workspace", label: "Workspace name", initialValue: "New Workspace", submitLabel: "Create workspace", onSubmit: (name) => void applyHierarchyMutation(api.createWorkspace(name)) });

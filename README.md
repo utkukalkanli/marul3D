@@ -7,6 +7,7 @@ and provider-neutral hosted model adapters.
 ## MVP capabilities
 
 - Browse local CAD data as workspace, project, and object cards.
+- See each object's latest geometry in a slowly rotating live 3D card preview.
 - Create, rename, select, and recoverably delete every hierarchy level.
 - Keep a compact, optional hierarchy tree beside the 3D editor.
 - Resize the AI prompt panel vertically to balance chat and viewport space.
