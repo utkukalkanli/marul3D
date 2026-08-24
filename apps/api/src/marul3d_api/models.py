@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -141,10 +142,63 @@ class ProviderStatus(StrictModel):
     storage: Literal["keychain", "environment", "unavailable"]
 
 
+class AgentPromptRequest(StrictModel):
+    prompt: str = Field(min_length=1, max_length=20_000)
+    provider: Literal["openai"] = "openai"
+    model: str = "gpt-5.6"
+
+
+class AgentMessage(StrictModel):
+    id: str
+    role: Literal["user", "assistant"]
+    text: str
+    kind: Literal["message", "clarification", "proposal", "error"] = "message"
+    options: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+
+class AgentToolEvent(StrictModel):
+    id: str
+    tool: str
+    label: str
+    status: Literal["running", "completed", "failed", "awaiting_approval"]
+    detail: str | None = None
+
+
+class FeatureDiff(StrictModel):
+    added: list[str] = Field(default_factory=list)
+    removed: list[str] = Field(default_factory=list)
+    modified: list[str] = Field(default_factory=list)
+
+
+class AgentProposal(StrictModel):
+    id: str
+    summary: str
+    document: CadDocument
+    diff: FeatureDiff
+    status: Literal["draft", "validating", "invalid", "ready", "applied", "discarded"] = "draft"
+    error: str | None = None
+    build_attempts: int = 0
+
+
+class AgentConversation(StrictModel):
+    schema_version: Literal[1] = 1
+    runtime: Literal["opencode"] = "opencode"
+    opencode_session_id: str | None = None
+    messages: list[AgentMessage] = Field(default_factory=list)
+    tool_events: list[AgentToolEvent] = Field(default_factory=list)
+    proposal: AgentProposal | None = None
+
+
 class BuildResponse(StrictModel):
     document: CadDocument
     preview_revision: int
     summary: str | None = None
+
+
+class AgentApplyResponse(StrictModel):
+    build: BuildResponse
+    conversation: AgentConversation
 
 
 class EntityNameRequest(StrictModel):

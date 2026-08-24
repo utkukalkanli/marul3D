@@ -1,21 +1,19 @@
 import {
   Box,
-  ChevronDown,
+  Columns2,
   Download,
   FileUp,
   LayoutGrid,
   Layers3,
   LoaderCircle,
+  Maximize2,
+  MessageSquare,
+  Minimize2,
   PanelLeftOpen,
-  Play,
   Settings,
-  Sparkles,
 } from "lucide-react";
 import {
   ChangeEvent,
-  CSSProperties,
-  FormEvent,
-  PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
@@ -23,6 +21,7 @@ import {
 } from "react";
 import { api } from "./api";
 import { CadViewport } from "./components/CadViewport";
+import { AgentPanel } from "./components/AgentPanel";
 import { EditorSidebar } from "./components/EditorSidebar";
 import { EntityDialog, type EntityDialogRequest } from "./components/EntityDialog";
 import { FeatureDialog } from "./components/FeatureDialog";
@@ -31,14 +30,13 @@ import { LibraryBrowser } from "./components/LibraryBrowser";
 import { SettingsDialog } from "./components/SettingsDialog";
 import type {
   BuildResponse,
+  AgentConversation,
   CadDocument,
   DisplayUnit,
   Feature,
   HierarchyResponse,
   ObjectRef,
 } from "./types";
-
-type ChatMessage = { role: "user" | "assistant"; text: string };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong";
@@ -95,13 +93,14 @@ export default function App() {
   const [document, setDocument] = useState<CadDocument | null>(null);
   const [previewRevision, setPreviewRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
   const model = "gpt-5.6";
   const [view, setView] = useState<"library" | "editor">("library");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [promptHeight, setPromptHeight] = useState(218);
   const [displayUnit, setDisplayUnit] = useState<DisplayUnit>(savedDisplayUnit);
-  const promptResize = useRef<{ startY: number; startHeight: number } | null>(null);
+  const [centerMode, setCenterMode] = useState<"3d" | "agent" | "split">("split");
+  const [agentMaximized, setAgentMaximized] = useState(false);
+  const [conversation, setConversation] = useState<AgentConversation | null>(null);
+  const [streamingText, setStreamingText] = useState("");
   const [initializing, setInitializing] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,12 +108,6 @@ export default function App() {
   const [entityDialog, setEntityDialog] = useState<EntityDialogRequest | null>(null);
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [providerConfigured, setProviderConfigured] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      text: "Select a CAD object, then ask me to create or edit its features.",
-    },
-  ]);
   const importInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -128,7 +121,14 @@ export default function App() {
         setProviderConfigured(status.configured);
         const ref = selectedRef(nextHierarchy);
         setSelection(ref);
-        if (ref) applyBuild(await api.document(ref), ref);
+        if (ref) {
+          const [build, agent] = await Promise.all([
+            api.document(ref),
+            api.agentConversation(ref),
+          ]);
+          applyBuild(build, ref);
+          setConversation(agent);
+        }
       } catch (caught) {
         setError(errorMessage(caught));
       } finally {
@@ -183,27 +183,19 @@ export default function App() {
     setError(null);
     setSelection(ref);
     try {
-      const build = await api.document(ref);
-      applyBuild(build, ref);
-      setView("editor");
-      setMessages([
-        { role: "assistant", text: `Editing ${build.document.name}. What should we change?` },
+      const [build, agent] = await Promise.all([
+        api.document(ref),
+        api.agentConversation(ref),
       ]);
+      applyBuild(build, ref);
+      setConversation(agent);
+      setView("editor");
     } catch (caught) {
       setDocument(null);
       setError(errorMessage(caught));
     } finally {
       setBusy(false);
     }
-  }
-
-  function resizePrompt(event: ReactPointerEvent<HTMLDivElement>) {
-    const resize = promptResize.current;
-    if (!resize) return;
-    const maximum = Math.min(520, window.innerHeight * 0.62);
-    setPromptHeight(
-      Math.max(150, Math.min(maximum, resize.startHeight + resize.startY - event.clientY)),
-    );
   }
 
   async function applyHierarchyMutation(mutation: Promise<HierarchyResponse>) {
@@ -216,10 +208,15 @@ export default function App() {
       const ref = selectedRef(nextHierarchy);
       setSelection(ref);
       setDocument(null);
+      setConversation(null);
       setSelectedId(null);
       if (ref) {
-        const build = await api.document(ref);
+        const [build, agent] = await Promise.all([
+          api.document(ref),
+          api.agentConversation(ref),
+        ]);
         applyBuild(build, ref);
+        setConversation(agent);
       }
     } catch (caught) {
       setError(errorMessage(caught));
@@ -245,32 +242,68 @@ export default function App() {
     [document, selectedId],
   );
 
-  async function submitPrompt(event: FormEvent) {
-    event.preventDefault();
-    const nextPrompt = prompt.trim();
-    if (!nextPrompt || busy || !selection || !document) return;
+  async function sendAgentPrompt(nextPrompt: string) {
+    if (!nextPrompt.trim() || busy || !selection || !document) return;
     if (!providerConfigured) {
       setSettingsOpen(true);
       return;
     }
-    setPrompt("");
-    setMessages((current) => [...current, { role: "user", text: nextPrompt }]);
     setBusy(true);
     setError(null);
+    setStreamingText("");
+    setCenterMode((current) => current === "3d" ? "split" : current);
     try {
-      const build = await api.generate(selection, nextPrompt, model);
-      applyBuild(build, selection);
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", text: build.summary ?? "Object rebuilt successfully." },
-      ]);
+      await api.streamAgentMessage(selection, nextPrompt, model, (event) => {
+        if (event.event === "conversation") {
+          setConversation(event.data);
+          setStreamingText("");
+        } else if (event.event === "tool") {
+          setConversation((current) => current ? {
+            ...current,
+            tool_events: [
+              ...current.tool_events.filter((item) => item.id !== event.data.id),
+              event.data,
+            ],
+          } : current);
+        } else if (event.event === "proposal") {
+          setConversation((current) => current ? { ...current, proposal: event.data } : current);
+        } else if (event.event === "delta") {
+          setStreamingText((current) => current + event.data.text);
+        } else if (event.event === "error") {
+          setError(event.data.detail);
+        }
+      });
     } catch (caught) {
       const message = errorMessage(caught);
       setError(message);
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", text: `Build stopped: ${message}` },
-      ]);
+    } finally {
+      setBusy(false);
+      setStreamingText("");
+    }
+  }
+
+  async function applyAgentProposal() {
+    if (!selection || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.applyAgentProposal(selection);
+      applyBuild(result.build, selection);
+      setConversation(result.conversation);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function discardAgentProposal() {
+    if (!selection || busy) return;
+    setBusy(true);
+    try {
+      setConversation(await api.discardAgentProposal(selection));
+    } catch (caught) {
+      setError(errorMessage(caught));
     } finally {
       setBusy(false);
     }
@@ -385,10 +418,6 @@ export default function App() {
     try {
       const build = await api.importModel(selection, file);
       applyBuild(build, selection);
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", text: build.summary ?? "Import complete." },
-      ]);
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -472,7 +501,7 @@ export default function App() {
         <input ref={importInput} hidden type="file" accept=".step,.stp,.stl" onChange={importModel} />
       </header>
 
-      <div className={`workspace ${view === "editor" && !sidebarOpen ? "sidebar-collapsed" : ""}`}>
+      <div className={`workspace ${view === "editor" && !sidebarOpen ? "sidebar-collapsed" : ""} ${view === "editor" && agentMaximized ? "agent-maximized" : ""}`}>
         <nav className="activity-bar" aria-label="Workspace sections">
           <button className={`activity ${view === "library" ? "active" : ""}`} type="button" aria-label="CAD library" onClick={() => setView("library")}><LayoutGrid size={21} /></button>
           <button
@@ -543,99 +572,44 @@ export default function App() {
                 onReorder={reorderFeature}
               />
             )}
-            <main
-              className="center-workspace"
-              style={{ "--prompt-height": `${promptHeight}px` } as CSSProperties}
-            >
-          <section className="viewport-panel">
-            <div className="viewport-tabbar">
-              {!sidebarOpen && (
-                <button
-                  className="viewport-sidebar-toggle"
-                  type="button"
-                  aria-label="Open CAD explorer"
-                  title="Open CAD explorer"
-                  onClick={() => setSidebarOpen(true)}
-                >
-                  <PanelLeftOpen size={15} />
-                </button>
-              )}
-              <div className="viewport-tab active"><Box size={14} /> 3D View</div>
-              <div className="viewport-status">
-                {busy ? <><LoaderCircle className="spin" size={13} /> Rebuilding</> : document ? <>B-rep valid</> : <>No object selected</>}
-              </div>
-            </div>
-            {document && selection ? (
-              <CadViewport
-                key={`${selection.objectId}-${previewRevision}`}
-                previewUrl={api.previewUrl(selection, previewRevision)}
-              />
-            ) : (
-              <div className="empty-viewport">
-                <Layers3 size={38} />
-                <h2>Select a CAD object</h2>
-                <p>Create a workspace, add a project, then create or select an object.</p>
-              </div>
-            )}
-          </section>
-
-          <section className="prompt-panel">
-            <div
-              className="prompt-resize-handle"
-              role="separator"
-              aria-label="Resize prompt panel"
-              aria-orientation="horizontal"
-              tabIndex={0}
-              onPointerDown={(event) => {
-                promptResize.current = { startY: event.clientY, startHeight: promptHeight };
-                event.currentTarget.setPointerCapture(event.pointerId);
-              }}
-              onPointerMove={resizePrompt}
-              onPointerUp={(event) => {
-                promptResize.current = null;
-                event.currentTarget.releasePointerCapture(event.pointerId);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "ArrowUp") setPromptHeight((height) => Math.min(520, height + 20));
-                if (event.key === "ArrowDown") setPromptHeight((height) => Math.max(150, height - 20));
-              }}
-            ><span /></div>
-            <div className="prompt-header">
-              <div><Sparkles size={14} /> MARUL ASSIST</div>
-              <button className="model-picker" type="button">OpenAI · {model} <ChevronDown size={13} /></button>
-            </div>
-            <div className="message-strip">
-              {messages.slice(-2).map((message, index) => (
-                <div className={`message ${message.role}`} key={`${message.role}-${index}-${message.text}`}>
-                  <span>{message.role === "assistant" ? "M" : "You"}</span>
-                  <p>{message.text}</p>
+            <main className={`center-workspace mode-${centerMode}`}>
+              <div className="center-tabbar">
+                {!sidebarOpen && !agentMaximized && (
+                  <button className="viewport-sidebar-toggle" type="button" aria-label="Open CAD explorer" title="Open CAD explorer" onClick={() => setSidebarOpen(true)}>
+                    <PanelLeftOpen size={15} />
+                  </button>
+                )}
+                <button className={`center-tab ${centerMode === "3d" ? "active" : ""}`} type="button" onClick={() => { setCenterMode("3d"); setAgentMaximized(false); }}><Box size={14} /> 3D View</button>
+                <button className={`center-tab ${centerMode === "agent" ? "active" : ""}`} type="button" onClick={() => setCenterMode("agent")}><MessageSquare size={14} /> Agent</button>
+                <button className={`center-tab split-tab ${centerMode === "split" ? "active" : ""}`} type="button" aria-label="Split 3D and Agent view" onClick={() => { setCenterMode("split"); setAgentMaximized(false); }}><Columns2 size={14} /> Split</button>
+                <div className="viewport-status">
+                  {busy ? <><LoaderCircle className="spin" size={13} /> Agent working</> : <>B-rep valid</>}
                 </div>
-              ))}
-            </div>
-            <form className="prompt-composer" onSubmit={submitPrompt}>
-              <textarea
-                aria-label="CAD prompt"
-                placeholder={document ? "Describe a new part or edit this CAD object…" : "Select a CAD object to start editing…"}
-                value={prompt}
-                disabled={!document}
-                onChange={(event) => setPrompt(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }
-                }}
-              />
-              <div className="composer-footer">
-                <span>{selectedFeature ? `Context: ${selectedFeature.name}` : document ? `Context: ${document.name}` : "No CAD object selected"}</span>
-                <button className="run-button" type="submit" disabled={!prompt.trim() || busy || !document}>
-                  {busy ? <LoaderCircle className="spin" size={16} /> : <Play size={15} fill="currentColor" />}
-                  Build
-                </button>
+                {centerMode !== "3d" && (
+                  <button className="center-maximize" type="button" aria-label={agentMaximized ? "Exit full screen Agent" : "Full screen Agent"} onClick={() => { setAgentMaximized((value) => !value); setCenterMode("agent"); }}>
+                    {agentMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+                )}
               </div>
-            </form>
-            {error && <div className="error-banner" role="alert">{error}</div>}
-          </section>
+              {centerMode !== "agent" && (
+                <section className="viewport-panel">
+                  <CadViewport key={`${selection.objectId}-${previewRevision}`} previewUrl={api.previewUrl(selection, previewRevision)} />
+                </section>
+              )}
+              {centerMode !== "3d" && (
+                <AgentPanel
+                  conversation={conversation}
+                  proposal={conversation?.proposal ?? null}
+                  streamingText={streamingText}
+                  busy={busy}
+                  objectName={document.name}
+                  selectedFeatureName={selectedFeature?.name}
+                  onSend={(value) => void sendAgentPrompt(value)}
+                  onApply={() => void applyAgentProposal()}
+                  onDiscard={() => void discardAgentProposal()}
+                />
+              )}
+              {error && <div className="error-banner" role="alert">{error}</div>}
             </main>
             <Inspector
               feature={selectedFeature}

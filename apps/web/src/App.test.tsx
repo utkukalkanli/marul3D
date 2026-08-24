@@ -60,6 +60,17 @@ vi.mock("./api", () => ({
       preview_revision: 0,
       summary: null,
     }),
+    agentConversation: vi.fn().mockResolvedValue({
+      schema_version: 1,
+      runtime: "opencode",
+      opencode_session_id: null,
+      messages: [],
+      tool_events: [],
+      proposal: null,
+    }),
+    streamAgentMessage: vi.fn(),
+    applyAgentProposal: vi.fn(),
+    discardAgentProposal: vi.fn(),
     providerStatus: vi.fn().mockResolvedValue({ provider: "openai", configured: false, storage: "keychain" }),
     updateDocument: vi.fn().mockImplementation((_ref, document) => Promise.resolve({
       document: { ...document, revision: document.revision + 1 },
@@ -111,7 +122,9 @@ test("renders the CAD workspace", async () => {
   expect(document.querySelector(".workspace")).toHaveClass("sidebar-collapsed");
   fireEvent.click(screen.getByLabelText("Open CAD explorer"));
   expect(document.querySelector(".workspace")).not.toHaveClass("sidebar-collapsed");
-  expect(screen.getByLabelText("Resize prompt panel")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Agent" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Split 3D and Agent view")).toBeInTheDocument();
+  expect(screen.getByLabelText("Full screen Agent")).toBeInTheDocument();
 });
 
 test("creates a workspace from the hierarchy explorer", async () => {

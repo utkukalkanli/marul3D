@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import secrets
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from marul3d_api import __version__
+from marul3d_api.agent_service import AgentService
 from marul3d_api.build_engine import BuildError
 from marul3d_api.credentials import CredentialStore
 from marul3d_api.hierarchy_store import HierarchyError, WorkspaceStore
 from marul3d_api.models import (
+    AgentApplyResponse,
+    AgentConversation,
+    AgentPromptRequest,
     BuildResponse,
     CadDocument,
     CredentialRequest,
@@ -46,6 +51,11 @@ def get_store() -> WorkspaceStore:
 @lru_cache(maxsize=1)
 def get_credentials() -> CredentialStore:
     return CredentialStore()
+
+
+@lru_cache(maxsize=1)
+def get_agent_service() -> AgentService:
+    return AgentService()
 
 
 def _build_response(document: CadDocument, summary: str | None = None) -> BuildResponse:
@@ -268,6 +278,88 @@ def generate(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@app.get(f"{OBJECT_PATH}/agent", response_model=AgentConversation)
+def agent_conversation(
+    workspace_id: str,
+    project_id: str,
+    object_id: str,
+    store: WorkspaceStore = Depends(get_store),
+    service: AgentService = Depends(get_agent_service),
+) -> AgentConversation:
+    return service.conversation(_object_store(store, workspace_id, project_id, object_id))
+
+
+@app.post(f"{OBJECT_PATH}/agent/messages")
+def agent_message(
+    workspace_id: str,
+    project_id: str,
+    object_id: str,
+    request: AgentPromptRequest,
+    store: WorkspaceStore = Depends(get_store),
+    credentials: CredentialStore = Depends(get_credentials),
+    service: AgentService = Depends(get_agent_service),
+) -> StreamingResponse:
+    api_key, _ = credentials.get(request.provider)
+    if not api_key:
+        raise HTTPException(status_code=409, detail="Add an OpenAI API key in Settings first")
+    project = _object_store(store, workspace_id, project_id, object_id)
+    return StreamingResponse(
+        service.stream(project, request.prompt, request.model, api_key),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post(f"{OBJECT_PATH}/agent/proposal/apply", response_model=AgentApplyResponse)
+def apply_agent_proposal(
+    workspace_id: str,
+    project_id: str,
+    object_id: str,
+    store: WorkspaceStore = Depends(get_store),
+    service: AgentService = Depends(get_agent_service),
+) -> AgentApplyResponse:
+    project = _object_store(store, workspace_id, project_id, object_id)
+    try:
+        document, conversation = service.apply(project)
+    except (BuildError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return AgentApplyResponse(
+        build=_build_response(document, "Agent changes applied"), conversation=conversation
+    )
+
+
+@app.post(f"{OBJECT_PATH}/agent/proposal/discard", response_model=AgentConversation)
+def discard_agent_proposal(
+    workspace_id: str,
+    project_id: str,
+    object_id: str,
+    store: WorkspaceStore = Depends(get_store),
+    service: AgentService = Depends(get_agent_service),
+) -> AgentConversation:
+    project = _object_store(store, workspace_id, project_id, object_id)
+    return service.discard(project)
+
+
+@app.post("/api/internal/agent/{operation_id}/tools/{tool_name}")
+def invoke_agent_tool(
+    operation_id: str,
+    tool_name: str,
+    payload: dict[str, object] = Body(default_factory=dict),
+    x_marul_agent_token: str = Header(default=""),
+    service: AgentService = Depends(get_agent_service),
+) -> dict[str, object]:
+    if not x_marul_agent_token or not secrets.compare_digest(
+        x_marul_agent_token, service.internal_token
+    ):
+        raise HTTPException(status_code=403, detail="Invalid agent tool token")
+    try:
+        return service.tools.execute(operation_id, tool_name, payload)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (BuildError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.post(f"{OBJECT_PATH}/import", response_model=BuildResponse)
 async def import_model(
     workspace_id: str,
@@ -324,9 +416,7 @@ def export_model(
     store: WorkspaceStore = Depends(get_store),
 ) -> FileResponse:
     try:
-        path = _object_store(store, workspace_id, project_id, object_id).export(
-            extension.lower()
-        )
+        path = _object_store(store, workspace_id, project_id, object_id).export(extension.lower())
     except BuildError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     media_type = "model/stl" if extension.lower() == "stl" else "model/step"

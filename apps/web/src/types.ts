@@ -135,3 +135,58 @@ export type ObjectRef = {
   projectId: string;
   objectId: string;
 };
+
+export type AgentMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  kind: "message" | "clarification" | "proposal" | "error";
+  options: string[];
+  created_at: string;
+};
+
+export type AgentToolEvent = {
+  id: string;
+  tool: string;
+  label: string;
+  status: "running" | "completed" | "failed" | "awaiting_approval";
+  detail: string | null;
+};
+
+export type FeatureDiff = {
+  added: string[];
+  removed: string[];
+  modified: string[];
+};
+
+export type AgentProposal = {
+  id: string;
+  summary: string;
+  document: CadDocument;
+  diff: FeatureDiff;
+  status: "draft" | "validating" | "invalid" | "ready" | "applied" | "discarded";
+  error: string | null;
+  build_attempts: number;
+};
+
+export type AgentConversation = {
+  schema_version: 1;
+  runtime: "opencode";
+  opencode_session_id: string | null;
+  messages: AgentMessage[];
+  tool_events: AgentToolEvent[];
+  proposal: AgentProposal | null;
+};
+
+export type AgentApplyResponse = {
+  build: BuildResponse;
+  conversation: AgentConversation;
+};
+
+export type AgentStreamEvent =
+  | { event: "conversation"; data: AgentConversation }
+  | { event: "tool"; data: AgentToolEvent }
+  | { event: "proposal"; data: AgentProposal }
+  | { event: "delta"; data: { message_id: string; text: string } }
+  | { event: "error"; data: { detail: string } }
+  | { event: "done"; data: Record<string, never> };

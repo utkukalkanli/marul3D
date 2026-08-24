@@ -1,4 +1,7 @@
 import type {
+  AgentApplyResponse,
+  AgentConversation,
+  AgentStreamEvent,
   BuildResponse,
   CadDocument,
   HierarchyResponse,
@@ -70,6 +73,49 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, provider: "openai", model }),
+    }),
+  agentConversation: (ref: ObjectRef) =>
+    request<AgentConversation>(`${objectBase(ref)}/agent`),
+  streamAgentMessage: async (
+    ref: ObjectRef,
+    prompt: string,
+    model: string,
+    onEvent: (event: AgentStreamEvent) => void,
+  ) => {
+    const response = await fetch(`${objectBase(ref)}/agent/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, provider: "openai", model }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+      throw new Error(payload?.detail ?? `Request failed (${response.status})`);
+    }
+    if (!response.body) throw new Error("Streaming is unavailable in this browser");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        if (!frame || frame.startsWith(":")) continue;
+        const event = frame.match(/^event: (.+)$/m)?.[1];
+        const data = frame.match(/^data: (.+)$/m)?.[1];
+        if (event && data) onEvent({ event, data: JSON.parse(data) } as AgentStreamEvent);
+      }
+      if (done) break;
+    }
+  },
+  applyAgentProposal: (ref: ObjectRef) =>
+    request<AgentApplyResponse>(`${objectBase(ref)}/agent/proposal/apply`, {
+      method: "POST",
+    }),
+  discardAgentProposal: (ref: ObjectRef) =>
+    request<AgentConversation>(`${objectBase(ref)}/agent/proposal/discard`, {
+      method: "POST",
     }),
   providerStatus: () => request<ProviderStatus>("/api/settings/providers/openai"),
   saveApiKey: (apiKey: string) =>

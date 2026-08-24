@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false,
+  "share": "disabled",
+  "plugin": [],
+  "permission": {
+    "*": "deny",
+    "read_document": "allow",
+    "ask_clarification": "allow",
+    "propose_features": "allow",
+    "build_preview": "allow",
+    "apply_document": "allow"
+  },
+  "agent": {
+    "marul": {
+      "description": "Constrained marul3D CAD planning agent",
+      "mode": "primary",
+      "permission": {
+        "*": "deny",
+        "read_document": "allow",
+        "ask_clarification": "allow",
+        "propose_features": "allow",
+        "build_preview": "allow",
+        "apply_document": "allow"
+      }
+    }
+  }
+}
