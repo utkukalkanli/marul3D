@@ -6,7 +6,6 @@ import {
   LayoutGrid,
   Layers3,
   LoaderCircle,
-  PanelLeftOpen,
   Play,
   Settings,
   Sparkles,
@@ -382,7 +381,19 @@ export default function App() {
       <div className={`workspace ${view === "editor" && !sidebarOpen ? "sidebar-collapsed" : ""}`}>
         <nav className="activity-bar" aria-label="Workspace sections">
           <button className={`activity ${view === "library" ? "active" : ""}`} type="button" aria-label="CAD library" onClick={() => setView("library")}><LayoutGrid size={21} /></button>
-          <button className={`activity ${view === "editor" ? "active" : ""}`} type="button" aria-label="3D editor" disabled={!document || !selection} onClick={() => setView("editor")}><Layers3 size={21} /></button>
+          <button
+            className={`activity ${view === "editor" ? "active" : ""}`}
+            type="button"
+            aria-label={view === "editor" && !sidebarOpen ? "Open CAD explorer" : "3D editor"}
+            title={view === "editor" && !sidebarOpen ? "Open CAD explorer" : "3D editor"}
+            disabled={!document || !selection}
+            onClick={() => {
+              if (view === "editor" && !sidebarOpen) setSidebarOpen(true);
+              else setView("editor");
+            }}
+          >
+            <Layers3 size={21} />
+          </button>
           <span className="activity-spacer" />
           <span className={`provider-dot ${providerConfigured ? "connected" : ""}`} title="OpenAI connection" />
         </nav>
@@ -422,7 +433,7 @@ export default function App() {
           />
         ) : document && selection ? (
           <>
-            {sidebarOpen ? (
+            {sidebarOpen && (
               <EditorSidebar
                 hierarchy={hierarchy}
                 selection={selection}
@@ -435,18 +446,6 @@ export default function App() {
                 onUndo={() => void historyAction("undo")}
                 onRedo={() => void historyAction("redo")}
               />
-            ) : (
-              <aside className="explorer-reopen" aria-label="CAD explorer collapsed">
-                <button
-                  className="panel-action"
-                  type="button"
-                  aria-label="Open CAD explorer"
-                  title="Open CAD explorer"
-                  onClick={() => setSidebarOpen(true)}
-                >
-                  <PanelLeftOpen size={16} />
-                </button>
-              </aside>
             )}
             <main
               className="center-workspace"
