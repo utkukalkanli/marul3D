@@ -1,17 +1,61 @@
-import { Bounds, Grid, OrbitControls, PerspectiveCamera } from "@react-three/drei";
-import { Canvas, useLoader } from "@react-three/fiber";
-import { Suspense } from "react";
+import { Grid, OrbitControls, PerspectiveCamera } from "@react-three/drei";
+import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { RefObject, Suspense, useLayoutEffect, useRef } from "react";
+import { Box3, BufferGeometry, Matrix4, Vector3 } from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
-function PartMesh({ previewUrl }: { previewUrl: string }) {
+const MODEL_ROTATION_X = -Math.PI / 2;
+
+function StaticCameraFit({ geometry, controlsRef }: {
+  geometry: BufferGeometry;
+  controlsRef: RefObject<OrbitControlsImpl | null>;
+}) {
+  const { camera, size } = useThree();
+
+  useLayoutEffect(() => {
+    geometry.computeBoundingBox();
+    if (!geometry.boundingBox) return;
+    const box = new Box3().copy(geometry.boundingBox);
+    box.applyMatrix4(new Matrix4().makeRotationX(MODEL_ROTATION_X));
+    const center = box.getCenter(new Vector3());
+    const dimensions = box.getSize(new Vector3());
+    const maxDimension = Math.max(dimensions.x, dimensions.y, dimensions.z, 1);
+    const perspective = camera as typeof camera & { fov?: number };
+    const fov = ((perspective.fov ?? 38) * Math.PI) / 180;
+    const verticalDistance = maxDimension / (2 * Math.tan(fov / 2));
+    const distance = 1.35 * Math.max(verticalDistance, verticalDistance / (size.width / size.height));
+    const direction = new Vector3(68, 54, 72).normalize();
+
+    camera.position.copy(center).addScaledVector(direction, distance);
+    camera.near = Math.max(distance / 100, 0.01);
+    camera.far = Math.max(distance * 100, 2500);
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    if (controlsRef.current) {
+      controlsRef.current.target.copy(center);
+      controlsRef.current.maxDistance = Math.max(distance * 10, 700);
+      controlsRef.current.update();
+    }
+  }, [camera, controlsRef, geometry, size.height, size.width]);
+
+  return null;
+}
+
+function PartMesh({ previewUrl, controlsRef }: {
+  previewUrl: string;
+  controlsRef: RefObject<OrbitControlsImpl | null>;
+}) {
   const geometry = useLoader(STLLoader, previewUrl);
   geometry.computeVertexNormals();
   return (
-    <Bounds fit clip observe margin={1.35}>
-      <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+    <>
+      <StaticCameraFit geometry={geometry} controlsRef={controlsRef} />
+      <mesh geometry={geometry} rotation={[MODEL_ROTATION_X, 0, 0]} castShadow receiveShadow>
         <meshStandardMaterial color="#b8df75" roughness={0.5} metalness={0.08} />
       </mesh>
-    </Bounds>
+    </>
   );
 }
 
@@ -25,6 +69,7 @@ function LoadingPart() {
 }
 
 export function CadViewport({ previewUrl }: { previewUrl: string }) {
+  const controlsRef = useRef<OrbitControlsImpl>(null);
   return (
     <div className="viewport-canvas" data-testid="cad-viewport">
       <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
@@ -39,7 +84,7 @@ export function CadViewport({ previewUrl }: { previewUrl: string }) {
         />
         <directionalLight intensity={0.8} position={[-35, 15, -30]} color="#b7d0ff" />
         <Suspense fallback={<LoadingPart />}>
-          <PartMesh previewUrl={previewUrl} />
+          <PartMesh previewUrl={previewUrl} controlsRef={controlsRef} />
         </Suspense>
         <Grid
           infiniteGrid
@@ -52,6 +97,7 @@ export function CadViewport({ previewUrl }: { previewUrl: string }) {
           position={[0, -0.08, 0]}
         />
         <OrbitControls
+          ref={controlsRef}
           makeDefault
           enableDamping
           dampingFactor={0.08}
