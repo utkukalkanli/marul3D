@@ -60,6 +60,18 @@ vi.mock("./api", () => ({
       selected_project_id: null,
       selected_object_id: null,
     }),
+    renameProject: vi.fn().mockResolvedValue({
+      workspaces: [
+        {
+          id: "workspace-1",
+          name: "Design Workspace",
+          projects: [{ id: "project-1", name: "Motion Platform", objects: [] }],
+        },
+      ],
+      selected_workspace_id: "workspace-1",
+      selected_project_id: "project-1",
+      selected_object_id: null,
+    }),
     previewUrl: vi.fn().mockReturnValue("/preview.stl"),
     exportUrl: vi.fn().mockReturnValue("/export.step"),
   },
@@ -67,19 +79,41 @@ vi.mock("./api", () => ({
 
 test("renders the CAD workspace", async () => {
   render(<App />);
-  expect((await screen.findAllByText("Design Workspace")).length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Robot Project").length).toBeGreaterThan(0);
-  expect((await screen.findAllByText("Test plate")).length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Base plate").length).toBeGreaterThan(0);
+  fireEvent.click(await screen.findByText("Design Workspace"));
+  fireEvent.click(await screen.findByText("Robot Project"));
+  fireEvent.click(await screen.findByText("Test plate"));
+
+  expect((await screen.findAllByText("Base plate")).length).toBeGreaterThan(0);
   expect(screen.getByLabelText("CAD prompt")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("Toggle file tree"));
+  expect(document.querySelector(".workspace")).toHaveClass("sidebar-collapsed");
+  expect(screen.getByLabelText("Resize prompt panel")).toBeInTheDocument();
 });
 
 test("creates a workspace from the hierarchy explorer", async () => {
-  vi.spyOn(window, "prompt").mockReturnValue("Factory");
   render(<App />);
 
-  fireEvent.click(await screen.findByLabelText("Create workspace"));
+  fireEvent.click(await screen.findByRole("button", { name: "New workspace" }));
+  const input = screen.getByLabelText("Workspace name");
+  fireEvent.change(input, { target: { value: "Factory" } });
+  fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
 
   await waitFor(() => expect(api.createWorkspace).toHaveBeenCalledWith("Factory"));
   expect(await screen.findByText("Factory")).toBeInTheDocument();
+});
+
+test("renames a project in the styled dialog", async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByText("Design Workspace"));
+  fireEvent.click(screen.getByLabelText("Rename project Robot Project"));
+
+  const input = screen.getByLabelText("Project name");
+  expect(input).toHaveValue("Robot Project");
+  fireEvent.change(input, { target: { value: "Motion Platform" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save name" }));
+
+  await waitFor(() => {
+    expect(api.renameProject).toHaveBeenCalledWith("workspace-1", "project-1", "Motion Platform");
+  });
+  expect(await screen.findByText("Motion Platform")).toBeInTheDocument();
 });

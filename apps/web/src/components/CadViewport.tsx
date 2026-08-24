@@ -29,8 +29,7 @@ export function CadViewport({ previewUrl }: { previewUrl: string }) {
     <div className="viewport-canvas" data-testid="cad-viewport">
       <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
         <color attach="background" args={["#151815"]} />
-        <fog attach="fog" args={["#151815", 100, 360]} />
-        <PerspectiveCamera makeDefault position={[68, 54, 72]} fov={38} />
+        <PerspectiveCamera makeDefault position={[68, 54, 72]} fov={38} near={0.1} far={2500} />
         <ambientLight intensity={1.1} />
         <directionalLight
           castShadow
@@ -44,7 +43,7 @@ export function CadViewport({ previewUrl }: { previewUrl: string }) {
         </Suspense>
         <Grid
           infiniteGrid
-          fadeDistance={180}
+          fadeDistance={520}
           fadeStrength={3}
           cellSize={5}
           sectionSize={25}
@@ -52,7 +51,13 @@ export function CadViewport({ previewUrl }: { previewUrl: string }) {
           sectionColor="#44513c"
           position={[0, -0.08, 0]}
         />
-        <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
+        <OrbitControls
+          makeDefault
+          enableDamping
+          dampingFactor={0.08}
+          minDistance={8}
+          maxDistance={700}
+        />
       </Canvas>
       <div className="view-cube" aria-hidden="true">
         <span>TOP</span>

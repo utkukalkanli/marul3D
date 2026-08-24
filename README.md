@@ -6,8 +6,10 @@ and provider-neutral hosted model adapters.
 
 ## MVP capabilities
 
-- Organize local CAD data as workspaces containing projects containing objects.
+- Browse local CAD data as workspace, project, and object cards.
 - Create, rename, select, and recoverably delete every hierarchy level.
+- Keep a compact, optional hierarchy tree beside the 3D editor.
+- Resize the AI prompt panel vertically to balance chat and viewport space.
 - Keep independent geometry, previews, imports, exports, and edit history per object.
 - Create parametric parts from natural-language prompts.
 - Edit an ordered feature history and rebuild geometry transactionally.

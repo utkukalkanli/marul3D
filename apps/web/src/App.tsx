@@ -3,21 +3,34 @@ import {
   ChevronDown,
   Download,
   FileUp,
-  History,
+  LayoutGrid,
   Layers3,
   LoaderCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
   Redo2,
   Settings,
   Sparkles,
   Undo2,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  CSSProperties,
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { api } from "./api";
 import { CadViewport } from "./components/CadViewport";
+import { EditorSidebar } from "./components/EditorSidebar";
+import { EntityDialog, type EntityDialogRequest } from "./components/EntityDialog";
 import { Inspector } from "./components/Inspector";
+import { LibraryBrowser } from "./components/LibraryBrowser";
 import { SettingsDialog } from "./components/SettingsDialog";
-import { WorkspaceExplorer } from "./components/WorkspaceExplorer";
 import type {
   BuildResponse,
   CadDocument,
@@ -46,11 +59,6 @@ function selectedRef(hierarchy: HierarchyResponse): ObjectRef | null {
   };
 }
 
-function askName(label: string, currentName = ""): string | null {
-  const value = window.prompt(label, currentName)?.trim();
-  return value ? value : null;
-}
-
 export default function App() {
   const [hierarchy, setHierarchy] = useState<HierarchyResponse | null>(null);
   const [selection, setSelection] = useState<ObjectRef | null>(null);
@@ -59,10 +67,15 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const model = "gpt-5.6";
+  const [view, setView] = useState<"library" | "editor">("library");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [promptHeight, setPromptHeight] = useState(218);
+  const promptResize = useRef<{ startY: number; startHeight: number } | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [entityDialog, setEntityDialog] = useState<EntityDialogRequest | null>(null);
   const [providerConfigured, setProviderConfigured] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -140,6 +153,7 @@ export default function App() {
     try {
       const build = await api.document(ref);
       applyBuild(build, ref);
+      setView("editor");
       setMessages([
         { role: "assistant", text: `Editing ${build.document.name}. What should we change?` },
       ]);
@@ -149,6 +163,15 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function resizePrompt(event: ReactPointerEvent<HTMLDivElement>) {
+    const resize = promptResize.current;
+    if (!resize) return;
+    const maximum = Math.min(520, window.innerHeight * 0.62);
+    setPromptHeight(
+      Math.max(150, Math.min(maximum, resize.startHeight + resize.startY - event.clientY)),
+    );
   }
 
   async function applyHierarchyMutation(mutation: Promise<HierarchyResponse>) {
@@ -321,84 +344,86 @@ export default function App() {
           <strong>marul<span>3D</span></strong>
         </div>
         <div className="document-title">
-          <Box size={14} />
-          <span>{selectedWorkspace?.name ?? "No workspace"}</span>
-          {selectedProject && <><i>/</i><span>{selectedProject.name}</span></>}
-          {selectedObject && <><i>/</i><strong>{selectedObject.name}</strong></>}
-          {document && <small>r{document.revision}</small>}
+          {view === "library" ? (
+            <><LayoutGrid size={14} /><strong>CAD Library</strong></>
+          ) : (
+            <>
+              <Box size={14} />
+              <span>{selectedWorkspace?.name ?? "No workspace"}</span>
+              {selectedProject && <><i>/</i><span>{selectedProject.name}</span></>}
+              {selectedObject && <><i>/</i><strong>{selectedObject.name}</strong></>}
+              {document && <small>r{document.revision}</small>}
+            </>
+          )}
         </div>
         <nav className="title-actions">
-          <button type="button" className="icon-button" aria-label="Undo" disabled={busy || !document} onClick={() => historyAction("undo")}><Undo2 size={16} /></button>
-          <button type="button" className="icon-button" aria-label="Redo" disabled={busy || !document} onClick={() => historyAction("redo")}><Redo2 size={16} /></button>
-          <span className="title-divider" />
-          <button type="button" className="toolbar-button" disabled={busy || !document} onClick={() => importInput.current?.click()}><FileUp size={15} /> Import</button>
-          <div className="export-menu">
-            <a className={`toolbar-button ${!exportStep ? "disabled" : ""}`} href={exportStep}><Download size={15} /> STEP</a>
-            <a className={`toolbar-button ${!exportStl ? "disabled" : ""}`} href={exportStl}>STL</a>
-          </div>
+          {view === "editor" && (
+            <>
+              <button type="button" className="icon-button" aria-label="Toggle file tree" onClick={() => setSidebarOpen((current) => !current)}>{sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}</button>
+              <span className="title-divider" />
+              <button type="button" className="icon-button" aria-label="Undo" disabled={busy || !document} onClick={() => historyAction("undo")}><Undo2 size={16} /></button>
+              <button type="button" className="icon-button" aria-label="Redo" disabled={busy || !document} onClick={() => historyAction("redo")}><Redo2 size={16} /></button>
+              <span className="title-divider" />
+              <button type="button" className="toolbar-button" disabled={busy || !document} onClick={() => importInput.current?.click()}><FileUp size={15} /> Import</button>
+              <div className="export-menu">
+                <a className={`toolbar-button ${!exportStep ? "disabled" : ""}`} href={exportStep}><Download size={15} /> STEP</a>
+                <a className={`toolbar-button ${!exportStl ? "disabled" : ""}`} href={exportStl}>STL</a>
+              </div>
+            </>
+          )}
           <button type="button" className="icon-button" aria-label="Settings" onClick={() => setSettingsOpen(true)}><Settings size={17} /></button>
         </nav>
         <input ref={importInput} hidden type="file" accept=".step,.stp,.stl" onChange={importModel} />
       </header>
 
-      <div className="workspace">
+      <div className={`workspace ${view === "editor" && !sidebarOpen ? "sidebar-collapsed" : ""}`}>
         <nav className="activity-bar" aria-label="Workspace sections">
-          <button className="activity active" type="button" aria-label="Model"><Layers3 size={21} /></button>
-          <button className="activity" type="button" aria-label="History"><History size={21} /></button>
+          <button className={`activity ${view === "library" ? "active" : ""}`} type="button" aria-label="CAD library" onClick={() => setView("library")}><LayoutGrid size={21} /></button>
+          <button className={`activity ${view === "editor" ? "active" : ""}`} type="button" aria-label="3D editor" disabled={!document || !selection} onClick={() => setView("editor")}><Layers3 size={21} /></button>
           <span className="activity-spacer" />
           <span className={`provider-dot ${providerConfigured ? "connected" : ""}`} title="OpenAI connection" />
         </nav>
 
-        <WorkspaceExplorer
-          hierarchy={hierarchy}
-          selection={selection}
-          features={document?.features ?? []}
-          selectedFeatureId={selectedId}
-          disabled={busy}
-          onSelectObject={(ref) => void selectObject(ref)}
-          onSelectFeature={setSelectedId}
-          onCreateWorkspace={() => {
-            const name = askName("Workspace name", "New Workspace");
-            if (name) void applyHierarchyMutation(api.createWorkspace(name));
-          }}
-          onRenameWorkspace={(id, currentName) => {
-            const name = askName("Rename workspace", currentName);
-            if (name) void applyHierarchyMutation(api.renameWorkspace(id, name));
-          }}
-          onDeleteWorkspace={(id, name) => {
-            if (window.confirm(`Delete workspace “${name}” and all of its projects and objects?`)) {
-              void applyHierarchyMutation(api.deleteWorkspace(id));
-            }
-          }}
-          onCreateProject={(workspaceId) => {
-            const name = askName("Project name", "New Project");
-            if (name) void applyHierarchyMutation(api.createProject(workspaceId, name));
-          }}
-          onRenameProject={(workspaceId, projectId, currentName) => {
-            const name = askName("Rename project", currentName);
-            if (name) void applyHierarchyMutation(api.renameProject(workspaceId, projectId, name));
-          }}
-          onDeleteProject={(workspaceId, projectId, name) => {
-            if (window.confirm(`Delete project “${name}” and all of its objects?`)) {
-              void applyHierarchyMutation(api.deleteProject(workspaceId, projectId));
-            }
-          }}
-          onCreateObject={(workspaceId, projectId) => {
-            const name = askName("CAD object name", "New Part");
-            if (name) void applyHierarchyMutation(api.createObject(workspaceId, projectId, name));
-          }}
-          onRenameObject={(ref, currentName) => {
-            const name = askName("Rename CAD object", currentName);
-            if (name) void applyHierarchyMutation(api.renameObject(ref, name));
-          }}
-          onDeleteObject={(ref, name) => {
-            if (window.confirm(`Delete CAD object “${name}”?`)) {
-              void applyHierarchyMutation(api.deleteObject(ref));
-            }
-          }}
-        />
-
-        <main className="center-workspace">
+        {view === "library" ? (
+          <LibraryBrowser
+            hierarchy={hierarchy}
+            disabled={busy}
+            onSelectObject={(ref) => void selectObject(ref)}
+            onCreateWorkspace={() => {
+              setEntityDialog({ kind: "name", entity: "workspace", title: "Create a new workspace", label: "Workspace name", initialValue: "New Workspace", submitLabel: "Create workspace", onSubmit: (name) => void applyHierarchyMutation(api.createWorkspace(name)) });
+            }}
+            onRenameWorkspace={(id, currentName) => {
+              setEntityDialog({ kind: "name", entity: "workspace", title: "Rename workspace", label: "Workspace name", initialValue: currentName, submitLabel: "Save name", onSubmit: (name) => void applyHierarchyMutation(api.renameWorkspace(id, name)) });
+            }}
+            onDeleteWorkspace={(id, name) => {
+              setEntityDialog({ kind: "delete", entity: "workspace", title: `Delete “${name}”?`, description: "This workspace and everything inside it will be moved to marul3D’s local trash for manual recovery.", submitLabel: "Delete workspace", onSubmit: () => void applyHierarchyMutation(api.deleteWorkspace(id)) });
+            }}
+            onCreateProject={(workspaceId) => {
+              setEntityDialog({ kind: "name", entity: "project", title: "Create a new project", label: "Project name", initialValue: "New Project", submitLabel: "Create project", onSubmit: (name) => void applyHierarchyMutation(api.createProject(workspaceId, name)) });
+            }}
+            onRenameProject={(workspaceId, projectId, currentName) => {
+              setEntityDialog({ kind: "name", entity: "project", title: "Rename project", label: "Project name", initialValue: currentName, submitLabel: "Save name", onSubmit: (name) => void applyHierarchyMutation(api.renameProject(workspaceId, projectId, name)) });
+            }}
+            onDeleteProject={(workspaceId, projectId, name) => {
+              setEntityDialog({ kind: "delete", entity: "project", title: `Delete “${name}”?`, description: "This project and every CAD object inside it will be moved to marul3D’s local trash.", submitLabel: "Delete project", onSubmit: () => void applyHierarchyMutation(api.deleteProject(workspaceId, projectId)) });
+            }}
+            onCreateObject={(workspaceId, projectId) => {
+              setEntityDialog({ kind: "name", entity: "object", title: "Create a new CAD object", label: "Object name", initialValue: "New Part", submitLabel: "Create object", onSubmit: (name) => void applyHierarchyMutation(api.createObject(workspaceId, projectId, name)) });
+            }}
+            onRenameObject={(ref, currentName) => {
+              setEntityDialog({ kind: "name", entity: "object", title: "Rename CAD object", label: "Object name", initialValue: currentName, submitLabel: "Save name", onSubmit: (name) => void applyHierarchyMutation(api.renameObject(ref, name)) });
+            }}
+            onDeleteObject={(ref, name) => {
+              setEntityDialog({ kind: "delete", entity: "object", title: `Delete “${name}”?`, description: "This CAD object and its checkpoint history will be moved to marul3D’s local trash.", submitLabel: "Delete object", onSubmit: () => void applyHierarchyMutation(api.deleteObject(ref)) });
+            }}
+          />
+        ) : document && selection ? (
+          <>
+            <EditorSidebar hierarchy={hierarchy} selection={selection} features={document.features} selectedId={selectedId} disabled={busy} onSelectObject={(ref) => void selectObject(ref)} onSelectFeature={setSelectedId} />
+            <main
+              className="center-workspace"
+              style={{ "--prompt-height": `${promptHeight}px` } as CSSProperties}
+            >
           <section className="viewport-panel">
             <div className="viewport-tabbar">
               <div className="viewport-tab active"><Box size={14} /> 3D View</div>
@@ -421,6 +446,26 @@ export default function App() {
           </section>
 
           <section className="prompt-panel">
+            <div
+              className="prompt-resize-handle"
+              role="separator"
+              aria-label="Resize prompt panel"
+              aria-orientation="horizontal"
+              tabIndex={0}
+              onPointerDown={(event) => {
+                promptResize.current = { startY: event.clientY, startHeight: promptHeight };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={resizePrompt}
+              onPointerUp={(event) => {
+                promptResize.current = null;
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowUp") setPromptHeight((height) => Math.min(520, height + 20));
+                if (event.key === "ArrowDown") setPromptHeight((height) => Math.max(150, height - 20));
+              }}
+            ><span /></div>
             <div className="prompt-header">
               <div><Sparkles size={14} /> MARUL ASSIST</div>
               <button className="model-picker" type="button">OpenAI · {model} <ChevronDown size={13} /></button>
@@ -457,9 +502,10 @@ export default function App() {
             </form>
             {error && <div className="error-banner" role="alert">{error}</div>}
           </section>
-        </main>
-
-        <Inspector feature={selectedFeature} disabled={busy} onNumericChange={updateFeatureNumber} />
+            </main>
+            <Inspector feature={selectedFeature} disabled={busy} onNumericChange={updateFeatureNumber} />
+          </>
+        ) : null}
       </div>
 
       <footer className="statusbar">
@@ -474,6 +520,9 @@ export default function App() {
 
       {settingsOpen && (
         <SettingsDialog configured={providerConfigured} onClose={() => setSettingsOpen(false)} onSave={saveApiKey} />
+      )}
+      {entityDialog && (
+        <EntityDialog request={entityDialog} onClose={() => setEntityDialog(null)} />
       )}
     </div>
   );
