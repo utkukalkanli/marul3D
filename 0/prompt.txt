@@ -1,0 +1,9 @@
+add 2 new branches to the repo. 1-document-understanding-rag and 2-anomaly-detection
+
+---
+
+also create branch 3-mobile-application
+
+---
+
+finally create 4-high-performance-ad branch

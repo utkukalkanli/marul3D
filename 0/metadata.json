@@ -1,0 +1,97 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M0SWHCE725YF3EYQBMCFZBG7",
+  "session_id": "01a033bd-3849-7813-a675-fa7facc95583",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-24T12:39:46.224485Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "save_step_count": 3,
+  "files_touched": [
+    "README.md",
+    "apps/web/src/App.test.tsx",
+    "apps/web/src/App.tsx",
+    "apps/web/src/components/CadViewport.tsx",
+    "apps/web/src/components/WorkspaceExplorer.tsx",
+    "apps/web/src/styles.css",
+    "apps/web/src/test-setup.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "1c5e3a25a337",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 14179,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 124672,
+    "output_tokens": 824,
+    "api_call_count": 9
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 452,
+      "user_lines_removed": 238,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "apps/web/src/App.tsx": 127,
+        "apps/web/src/components/CadViewport.tsx": 9,
+        "apps/web/src/components/EditorSidebar.tsx": 98,
+        "apps/web/src/components/LibraryBrowser.tsx": 166,
+        "apps/web/src/styles.css": 52
+      },
+      "user_removed_per_file": {
+        "apps/web/src/App.tsx": 72,
+        "apps/web/src/components/CadViewport.tsx": 4,
+        "apps/web/src/components/WorkspaceExplorer.tsx": 161,
+        "apps/web/src/styles.css": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 187,
+      "user_lines_removed": 28,
+      "agent_lines_added": 460,
+      "agent_lines_removed": 243,
+      "user_added_per_file": {
+        "apps/web/src/App.test.tsx": 5,
+        "apps/web/src/App.tsx": 14,
+        "apps/web/src/components/EntityDialog.tsx": 116,
+        "apps/web/src/components/LibraryBrowser.tsx": 32,
+        "apps/web/src/styles.css": 20
+      },
+      "user_removed_per_file": {
+        "apps/web/src/App.test.tsx": 2,
+        "apps/web/src/App.tsx": 20,
+        "apps/web/src/components/LibraryBrowser.tsx": 3,
+        "apps/web/src/styles.css": 3
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 188,
+      "user_lines_removed": 8,
+      "agent_lines_added": 483,
+      "agent_lines_removed": 252,
+      "user_added_per_file": {
+        "README.md": 3,
+        "apps/web/src/App.test.tsx": 28,
+        "apps/web/src/App.tsx": 3,
+        "apps/web/src/components/EntityDialog.tsx": 116,
+        "apps/web/src/components/LibraryBrowser.tsx": 32,
+        "apps/web/src/styles.css": 2,
+        "apps/web/src/test-setup.ts": 4
+      },
+      "user_removed_per_file": {
+        "README.md": 1,
+        "apps/web/src/App.tsx": 3,
+        "apps/web/src/components/LibraryBrowser.tsx": 3,
+        "apps/web/src/styles.css": 1
+      }
+    }
+  ]
+}
