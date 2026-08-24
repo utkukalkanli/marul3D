@@ -542,17 +542,18 @@ source = { editable = "." }
 dependencies = [
     { name = "cadquery" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "keyring" },
     { name = "openai" },
     { name = "platformdirs" },
     { name = "pydantic" },
     { name = "python-multipart" },
+    { name = "truststore" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -561,17 +562,18 @@ dev = [
 requires-dist = [
     { name = "cadquery", specifier = ">=2.6.0,<2.7" },
     { name = "fastapi", specifier = ">=0.116,<1" },
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "keyring", specifier = ">=25.6,<26" },
     { name = "openai", specifier = ">=1.101,<3" },
     { name = "platformdirs", specifier = ">=4.3,<5" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "python-multipart", specifier = ">=0.0.20,<1" },
+    { name = "truststore", specifier = ">=0.10.4,<1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35,<1" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "pytest", specifier = ">=8.4,<9" },
     { name = "ruff", specifier = ">=0.12,<1" },
 ]
@@ -1084,6 +1086,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6a/14/497d520a7a0d177e47a3624bcf200657b3c353fe1936a36bdc4ef360dcba/trame_vtk-2.11.16.tar.gz", hash = "sha256:9525a05cfd135794a72e4267521fd4b3b47ed929d52e03b5465a1579e469d9a7", size = 829781, upload-time = "2026-08-14T11:30:30.376Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b6/7b/fe6c5674facfe47c23e7b77fc72df893b9e145ca04396ce8769a8d170dbd/trame_vtk-2.11.16-py3-none-any.whl", hash = "sha256:2b5eadaf152d1cc59604f1a5e7cabab933a79bb4f889cf15eecec8db0cc8721d", size = 851994, upload-time = "2026-08-14T11:30:28.433Z" },
+]
+
+[[package]]
+name = "truststore"
+version = "0.10.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/a3/1585216310e344e8102c22482f6060c7a6ea0322b63e026372e6dcefcfd6/truststore-0.10.4.tar.gz", hash = "sha256:9d91bd436463ad5e4ee4aba766628dd6cd7010cf3e2461756b3303710eebc301", size = 26169, upload-time = "2025-08-12T18:49:02.73Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/97/56608b2249fe206a67cd573bc93cd9896e1efb9e98bce9c163bcdc704b88/truststore-0.10.4-py3-none-any.whl", hash = "sha256:adaeaecf1cbb5f4de3b1959b42d41f6fab57b2b1666adb59e89cb0b53361d981", size = 18660, upload-time = "2025-08-12T18:49:01.46Z" },
 ]
 
 [[package]]

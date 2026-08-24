@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -76,16 +76,15 @@ class CustomCadQueryFeature(FeatureBase):
     parameters: list[NamedParameter] = Field(default_factory=list)
 
 
-Feature = Annotated[
+Feature = (
     BoxFeature
     | CylinderFeature
     | HolePatternFeature
     | FilletFeature
     | ImportStepFeature
     | ImportStlFeature
-    | CustomCadQueryFeature,
-    Field(discriminator="type"),
-]
+    | CustomCadQueryFeature
+)
 
 
 class CadDocument(StrictModel):

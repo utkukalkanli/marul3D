@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import ssl
 from pathlib import Path
 
-from openai import OpenAI
+import httpx
+import truststore
+from openai import APIConnectionError, OpenAI
 
 from marul3d_api.models import CadDocument, CadProposal
 
@@ -35,24 +38,32 @@ def _provider_document(document: CadDocument) -> str:
 
 class OpenAIProvider:
     def __init__(self, api_key: str) -> None:
-        self.client = OpenAI(api_key=api_key)
+        native_ssl_context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        http_client = httpx.Client(verify=native_ssl_context)
+        self.client = OpenAI(api_key=api_key, http_client=http_client)
 
     def propose(self, prompt: str, document: CadDocument, model: str) -> CadProposal:
-        response = self.client.responses.parse(
-            model=model,
-            store=False,
-            input=[
-                {"role": "developer", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        f"Current document:\n{_provider_document(document)}\n\n"
-                        f"Requested change:\n{prompt}"
-                    ),
-                },
-            ],
-            text_format=CadProposal,
-        )
+        try:
+            response = self.client.responses.parse(
+                model=model,
+                store=False,
+                input=[
+                    {"role": "developer", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Current document:\n{_provider_document(document)}\n\n"
+                            f"Requested change:\n{prompt}"
+                        ),
+                    },
+                ],
+                text_format=CadProposal,
+            )
+        except APIConnectionError as exc:
+            cause: BaseException = exc
+            while cause.__cause__ is not None:
+                cause = cause.__cause__
+            raise RuntimeError(f"Could not connect to OpenAI: {cause}") from exc
         if response.status != "completed":
             reason = getattr(response.incomplete_details, "reason", "unknown")
             raise RuntimeError(f"Model response was incomplete: {reason}")
