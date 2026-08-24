@@ -45,4 +45,6 @@ CAD source files and generated geometry stay on the Mac. The model provider
 receives the prompt and a compact JSON representation of the feature history.
 OpenAI requests use `store: false`. API keys are never returned to the browser.
 
-Entire is configured locally with automatic session pushes disabled.
+Entire is enabled for Codex and syncs session checkpoints to the Git remote.
+Start future Codex sessions from this repository directory so its hooks can
+capture them automatically.
