@@ -182,6 +182,8 @@ button { color: inherit; }
 .viewport-panel, .prompt-panel { min-height: 0; }
 .viewport-panel { display: flex; flex-direction: column; background: var(--bg-1); }
 .viewport-tabbar { display: flex; align-items: center; height: 34px; border-bottom: 1px solid var(--line); background: #181b18; }
+.viewport-sidebar-toggle { display: grid; place-items: center; width: 34px; height: 100%; padding: 0; border: 0; border-right: 1px solid var(--line); color: #80897d; background: #171a17; cursor: pointer; }
+.viewport-sidebar-toggle:hover { color: var(--accent); background: #20251f; }
 .viewport-tab { display: flex; align-items: center; gap: 7px; height: 100%; padding: 0 13px; color: #81887e; font-size: 11px; border-right: 1px solid var(--line); }
 .viewport-tab.active { position: relative; color: #dce1d8; background: #151815; }
 .viewport-tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: #151815; }

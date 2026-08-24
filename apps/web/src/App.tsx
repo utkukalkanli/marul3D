@@ -6,6 +6,7 @@ import {
   LayoutGrid,
   Layers3,
   LoaderCircle,
+  PanelLeftOpen,
   Play,
   Settings,
   Sparkles,
@@ -384,13 +385,10 @@ export default function App() {
           <button
             className={`activity ${view === "editor" ? "active" : ""}`}
             type="button"
-            aria-label={view === "editor" && !sidebarOpen ? "Open CAD explorer" : "3D editor"}
-            title={view === "editor" && !sidebarOpen ? "Open CAD explorer" : "3D editor"}
+            aria-label="3D editor"
+            title="3D editor"
             disabled={!document || !selection}
-            onClick={() => {
-              if (view === "editor" && !sidebarOpen) setSidebarOpen(true);
-              else setView("editor");
-            }}
+            onClick={() => setView("editor")}
           >
             <Layers3 size={21} />
           </button>
@@ -453,6 +451,17 @@ export default function App() {
             >
           <section className="viewport-panel">
             <div className="viewport-tabbar">
+              {!sidebarOpen && (
+                <button
+                  className="viewport-sidebar-toggle"
+                  type="button"
+                  aria-label="Open CAD explorer"
+                  title="Open CAD explorer"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <PanelLeftOpen size={15} />
+                </button>
+              )}
               <div className="viewport-tab active"><Box size={14} /> 3D View</div>
               <div className="viewport-status">
                 {busy ? <><LoaderCircle className="spin" size={13} /> Rebuilding</> : document ? <>B-rep valid</> : <>No object selected</>}
