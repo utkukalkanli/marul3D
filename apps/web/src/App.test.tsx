@@ -227,8 +227,18 @@ test("renders the CAD workspace", async () => {
   expect(historyHeading).toContainElement(screen.getByLabelText("Undo"));
   expect(historyHeading).toContainElement(screen.getByLabelText("Redo"));
 
-  fireEvent.change(screen.getByLabelText("Display units"), { target: { value: "inch" } });
+  fireEvent.click(screen.getByRole("button", { name: "inch" }));
   expect(screen.getByLabelText("Width")).toHaveValue(1.9685);
+  fireEvent.change(screen.getByLabelText("Width slider"), { target: { value: "2.5" } });
+  fireEvent.pointerUp(screen.getByLabelText("Width slider"));
+  await waitFor(() => {
+    const latest = vi.mocked(api.updateDocument).mock.calls.at(-1)?.[1];
+    expect(latest?.features[0]).toEqual(expect.objectContaining({ width: 63.5 }));
+  });
+  fireEvent.click(screen.getByLabelText("Close Properties"));
+  expect(document.querySelector(".workspace")).toHaveClass("inspector-collapsed");
+  fireEvent.click(screen.getByLabelText("Open Properties"));
+  expect(document.querySelector(".workspace")).not.toHaveClass("inspector-collapsed");
 
   fireEvent.click(screen.getByLabelText("Close CAD explorer"));
   expect(document.querySelector(".workspace")).toHaveClass("sidebar-collapsed");

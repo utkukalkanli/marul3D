@@ -11,10 +11,13 @@ and provider-neutral hosted model adapters.
 - Create, rename, select, and recoverably delete every hierarchy level.
 - Keep a compact, optional hierarchy tree beside the 3D editor.
 - Resize the AI prompt panel vertically to balance chat and viewport space.
-- Switch Inspector values between millimetres, centimetres, and inches without changing geometry.
+- Edit numeric parameters with debounced sliders and switch between millimetres,
+  centimetres, and inches without changing geometry.
+- Collapse the Properties Inspector when the viewport needs more space.
 - Keep independent geometry, previews, imports, exports, and edit history per object.
 - Create parametric parts from natural-language prompts.
-- Edit an ordered feature history and rebuild geometry transactionally.
+- Edit an ordered feature history and rebuild only its dirty suffix with a persistent,
+  content-addressed B-rep cache.
 - Fall back to restricted custom CadQuery features for open-ended geometry.
 - Import STEP as an editable base solid and STL as a reference mesh.
 - Export rebuilt geometry to STEP or STL.

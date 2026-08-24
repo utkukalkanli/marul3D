@@ -1,4 +1,5 @@
-import { SlidersHorizontal } from "lucide-react";
+import { PanelRightClose, SlidersHorizontal } from "lucide-react";
+import { CSSProperties, KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { DisplayUnit, Feature } from "../types";
 
 type EditableNumber = { key: string; label: string; value: number; unit?: string; positive?: boolean };
@@ -13,6 +14,28 @@ function displayValue(value: number, unit: string | undefined, displayUnit: Disp
   if (unit !== "mm") return value;
   const precision = displayUnit === "inch" ? 4 : displayUnit === "cm" ? 3 : 3;
   return Number((value / millimetresPerUnit[displayUnit]).toFixed(precision));
+}
+
+function baseValue(value: number, unit: string | undefined, displayUnit: DisplayUnit) {
+  return unit === "mm" ? value * millimetresPerUnit[displayUnit] : value;
+}
+
+function sliderBounds(field: EditableNumber, displayUnit: DisplayUnit) {
+  const value = displayValue(field.value, field.unit, displayUnit);
+  const isLength = field.unit === "mm";
+  const reference = isLength ? 100 / millimetresPerUnit[displayUnit] : 100;
+  const step = isLength
+    ? displayUnit === "inch" ? 0.01 : displayUnit === "cm" ? 0.05 : 0.5
+    : Math.max(Math.abs(value) / 100, 0.1);
+  if (field.positive === false) {
+    const extent = Math.max(Math.abs(value) * 2.5, reference);
+    return { min: -extent, max: extent, step };
+  }
+  return {
+    min: isLength ? 0.1 / millimetresPerUnit[displayUnit] : 0.001,
+    max: Math.max(Math.abs(value) * 3, reference),
+    step,
+  };
 }
 
 function numericFields(feature: Feature): EditableNumber[] {
@@ -67,29 +90,38 @@ export function Inspector({
   disabled,
   onDisplayUnitChange,
   onNumericChange,
+  onToggle,
 }: {
   feature: Feature | null;
   displayUnit: DisplayUnit;
   disabled: boolean;
   onDisplayUnitChange: (unit: DisplayUnit) => void;
   onNumericChange: (key: string, value: number) => void;
+  onToggle: () => void;
 }) {
   return (
     <aside className="inspector-panel">
       <div className="panel-heading inspector-title">
         <span>PROPERTIES</span>
         <div className="inspector-heading-actions">
-          <select
-            className="unit-select"
-            aria-label="Display units"
-            value={displayUnit}
-            onChange={(event) => onDisplayUnitChange(event.target.value as DisplayUnit)}
-          >
-            <option value="mm">mm</option>
-            <option value="cm">cm</option>
-            <option value="inch">inch</option>
-          </select>
+          <div className="unit-switch" role="group" aria-label="Display units">
+            {(["mm", "cm", "inch"] as DisplayUnit[]).map((unit) => (
+              <button
+                className={displayUnit === unit ? "selected" : ""}
+                type="button"
+                aria-label={unit}
+                aria-pressed={displayUnit === unit}
+                key={unit}
+                onClick={() => onDisplayUnitChange(unit)}
+              >
+                {unit === "inch" ? "in" : unit}
+              </button>
+            ))}
+          </div>
           <SlidersHorizontal size={14} />
+          <button className="panel-action" type="button" aria-label="Close Properties" title="Close Properties" onClick={onToggle}>
+            <PanelRightClose size={14} />
+          </button>
         </div>
       </div>
       {!feature ? (
@@ -101,32 +133,17 @@ export function Inspector({
           </div>
           <h2>{feature.name}</h2>
           <div className="property-section-title">Parameters</div>
-          {numericFields(feature).map((field) => {
-            const isLength = field.unit === "mm";
-            return (
-              <label className="property-row" key={field.key}>
-                <span>{field.label}</span>
-                <span className="number-input-wrap">
-                  <input
-                    aria-label={field.label}
-                    type="number"
-                    min={field.positive === false ? undefined : "0.001"}
-                    step={displayUnit === "inch" && isLength ? "0.01" : "0.1"}
-                    value={displayValue(field.value, field.unit, displayUnit)}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      const value = Number(event.target.value);
-                      onNumericChange(
-                        field.key,
-                        isLength ? value * millimetresPerUnit[displayUnit] : value,
-                      );
-                    }}
-                  />
-                  {field.unit && <em>{isLength ? displayUnit : field.unit}</em>}
-                </span>
-              </label>
-            );
-          })}
+          <div className="parameter-controls">
+            {numericFields(feature).map((field) => (
+              <ParameterControl
+                key={`${feature.id}-${field.key}`}
+                field={field}
+                displayUnit={displayUnit}
+                disabled={disabled}
+                onCommit={onNumericChange}
+              />
+            ))}
+          </div>
           {feature.type === "hole_pattern" && (
             <div className="property-note">{feature.points.length} hole locations</div>
           )}
@@ -136,5 +153,88 @@ export function Inspector({
         </div>
       )}
     </aside>
+  );
+}
+
+function ParameterControl({ field, displayUnit, disabled, onCommit }: {
+  field: EditableNumber;
+  displayUnit: DisplayUnit;
+  disabled: boolean;
+  onCommit: (key: string, value: number) => void;
+}) {
+  const externalValue = displayValue(field.value, field.unit, displayUnit);
+  const [draft, setDraft] = useState(externalValue);
+  const draftRef = useRef(externalValue);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bounds = sliderBounds(field, displayUnit);
+  const progress = Math.max(0, Math.min(100, ((draft - bounds.min) / (bounds.max - bounds.min)) * 100));
+
+  useEffect(() => {
+    setDraft(externalValue);
+    draftRef.current = externalValue;
+  }, [externalValue]);
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+
+  function commit(value = draftRef.current) {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    if (!Number.isFinite(value)) return;
+    onCommit(field.key, baseValue(value, field.unit, displayUnit));
+  }
+
+  function update(value: number) {
+    if (!Number.isFinite(value)) return;
+    setDraft(value);
+    draftRef.current = value;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => commit(value), 280);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.currentTarget.blur();
+    }
+  }
+
+  return (
+    <div className="parameter-control">
+      <div className="parameter-control-heading">
+        <label htmlFor={`parameter-${field.key}`}>{field.label}</label>
+        <span className="number-input-wrap">
+          <input
+            id={`parameter-${field.key}`}
+            aria-label={field.label}
+            type="number"
+            min={bounds.min}
+            max={bounds.max}
+            step={bounds.step}
+            value={draft}
+            disabled={disabled}
+            onChange={(event) => update(Number(event.target.value))}
+            onBlur={() => commit()}
+            onKeyDown={handleKeyDown}
+          />
+          {field.unit && <em>{field.unit === "mm" ? displayUnit : field.unit}</em>}
+        </span>
+      </div>
+      <input
+        className="parameter-slider"
+        aria-label={`${field.label} slider`}
+        type="range"
+        min={bounds.min}
+        max={bounds.max}
+        step={bounds.step}
+        value={draft}
+        disabled={disabled}
+        style={{ "--range-progress": `${progress}%` } as CSSProperties}
+        onChange={(event) => update(Number(event.target.value))}
+        onPointerUp={() => commit()}
+        onKeyUp={() => commit()}
+      />
+      <div className="parameter-range"><span>{Number(bounds.min.toFixed(3))}</span><span>{Number(bounds.max.toFixed(3))}</span></div>
+    </div>
   );
 }

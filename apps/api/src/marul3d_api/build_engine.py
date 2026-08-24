@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import cadquery as cq
@@ -182,7 +183,13 @@ def _run_custom_feature(
     return cq.importers.importStep(payload["output_step"])
 
 
-def build_document(document: CadDocument) -> cq.Workplane:
+def build_document(
+    document: CadDocument,
+    *,
+    initial_shape: cq.Workplane | None = None,
+    start_index: int = 0,
+    on_feature_built: Callable[[int, cq.Workplane], None] | None = None,
+) -> cq.Workplane:
     feature_by_id = {feature.id: feature for feature in document.features}
     if len(feature_by_id) != len(document.features):
         raise BuildError("Feature IDs must be unique")
@@ -210,12 +217,29 @@ def build_document(document: CadDocument) -> cq.Workplane:
                 )
         completed.add(feature.id)
 
-    current: cq.Workplane | None = None
+    if start_index < 0 or start_index > len(document.features):
+        raise BuildError("Incremental build start is outside the feature history")
+
+    current = initial_shape
     sketches: dict[str, cq.Workplane] = {}
     with tempfile.TemporaryDirectory(prefix="marul3d-build-") as temporary:
         work_dir = Path(temporary)
-        for feature in document.features:
+        for index, feature in enumerate(document.features):
+            if index < start_index:
+                if feature.enabled and isinstance(feature, SketchFeature):
+                    sketch = cq.Workplane(
+                        feature.plane,
+                        origin=(feature.origin_x, feature.origin_y, feature.origin_z),
+                    )
+                    sketches[feature.id] = (
+                        sketch.rect(feature.width, feature.height)
+                        if feature.profile == "rectangle"
+                        else sketch.circle(feature.radius)
+                    )
+                continue
             if not feature.enabled:
+                if current is not None and on_feature_built:
+                    on_feature_built(index, current)
                 continue
             try:
                 if isinstance(feature, SketchFeature):
@@ -271,6 +295,8 @@ def build_document(document: CadDocument) -> cq.Workplane:
                         raise BuildError("STL reference meshes cannot receive B-rep features")
                 elif isinstance(feature, CustomCadQueryFeature):
                     current = _run_custom_feature(feature, current, work_dir)
+                if current is not None and on_feature_built:
+                    on_feature_built(index, current)
             except BuildError:
                 raise
             except Exception as exc:

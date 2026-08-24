@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Minimize2,
   PanelLeftOpen,
+  PanelRightOpen,
   Settings,
   ScanLine,
   Store,
@@ -107,6 +108,7 @@ export default function App() {
   const model = "gpt-5.6";
   const [view, setView] = useState<"library" | "editor" | "marketplace" | "community" | "scans">("library");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [displayUnit, setDisplayUnit] = useState<DisplayUnit>(savedDisplayUnit);
   const [centerMode, setCenterMode] = useState<"3d" | "agent" | "split">("split");
   const [agentMaximized, setAgentMaximized] = useState(false);
@@ -612,7 +614,7 @@ export default function App() {
         <input ref={importInput} hidden type="file" accept=".step,.stp,.stl" onChange={importModel} />
       </header>
 
-      <div className={`workspace ${view === "editor" && !sidebarOpen ? "sidebar-collapsed" : ""} ${view === "editor" && agentMaximized ? "agent-maximized" : ""}`}>
+      <div className={`workspace ${view === "editor" && !sidebarOpen ? "sidebar-collapsed" : ""} ${view === "editor" && !inspectorOpen ? "inspector-collapsed" : ""} ${view === "editor" && agentMaximized ? "agent-maximized" : ""}`}>
         <nav className="activity-bar" aria-label="Workspace sections">
           <button className={`activity ${view === "library" ? "active" : ""}`} type="button" aria-label="CAD library" onClick={() => setView("library")}><LayoutGrid size={21} /></button>
           <button
@@ -728,6 +730,11 @@ export default function App() {
                 <div className="viewport-status">
                   {busy ? <><LoaderCircle className="spin" size={13} /> Agent working</> : <>B-rep valid</>}
                 </div>
+                {!inspectorOpen && !agentMaximized && (
+                  <button className="viewport-inspector-toggle" type="button" aria-label="Open Properties" title="Open Properties" onClick={() => setInspectorOpen(true)}>
+                    <PanelRightOpen size={15} />
+                  </button>
+                )}
                 {centerMode !== "3d" && (
                   <button className="center-maximize" type="button" aria-label={agentMaximized ? "Exit full screen Agent" : "Full screen Agent"} onClick={() => { setAgentMaximized((value) => !value); setCenterMode("agent"); }}>
                     {agentMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
@@ -754,20 +761,23 @@ export default function App() {
               )}
               {error && <div className="error-banner" role="alert">{error}</div>}
             </main>
-            <Inspector
-              feature={selectedFeature}
-              displayUnit={displayUnit}
-              disabled={busy}
-              onDisplayUnitChange={(unit) => {
-                setDisplayUnit(unit);
-                try {
-                  window.localStorage?.setItem("marul3d.displayUnit", unit);
-                } catch {
-                  // Storage can be unavailable in privacy-restricted browser contexts.
-                }
-              }}
-              onNumericChange={updateFeatureNumber}
-            />
+            {inspectorOpen && (
+              <Inspector
+                feature={selectedFeature}
+                displayUnit={displayUnit}
+                disabled={busy}
+                onToggle={() => setInspectorOpen(false)}
+                onDisplayUnitChange={(unit) => {
+                  setDisplayUnit(unit);
+                  try {
+                    window.localStorage?.setItem("marul3d.displayUnit", unit);
+                  } catch {
+                    // Storage can be unavailable in privacy-restricted browser contexts.
+                  }
+                }}
+                onNumericChange={updateFeatureNumber}
+              />
+            )}
           </>
         ) : null}
       </div>
