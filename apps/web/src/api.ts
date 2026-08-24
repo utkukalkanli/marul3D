@@ -4,9 +4,14 @@ import type {
   AgentStreamEvent,
   BuildResponse,
   CadDocument,
+  CommunityCatalogResponse,
+  CommunityListingDraft,
+  ExtensionCatalogResponse,
   HierarchyResponse,
   ObjectRef,
   ProviderStatus,
+  ScanCatalogResponse,
+  ScanCopyResponse,
 } from "./types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -123,6 +128,58 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: "openai", api_key: apiKey }),
+    }),
+  extensions: () => request<ExtensionCatalogResponse>("/api/extensions"),
+  installExtension: (extensionId: string) =>
+    request<ExtensionCatalogResponse>(`/api/extensions/${extensionId}/install`, {
+      method: "POST",
+    }),
+  uninstallExtension: (extensionId: string) =>
+    request<ExtensionCatalogResponse>(`/api/extensions/${extensionId}`, {
+      method: "DELETE",
+    }),
+  enableExtension: (extensionId: string, enabled: boolean) =>
+    request<ExtensionCatalogResponse>(`/api/extensions/${extensionId}/enabled`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+  connectTrellis: (endpoint: string, apiToken: string) =>
+    request<ExtensionCatalogResponse>("/api/extensions/marul.trellis/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint, api_token: apiToken }),
+    }),
+  disconnectTrellis: () =>
+    request<ExtensionCatalogResponse>("/api/extensions/marul.trellis/disconnect", {
+      method: "POST",
+    }),
+  community: () => request<CommunityCatalogResponse>("/api/community/listings"),
+  createCommunityDraft: (ref: ObjectRef, draft: CommunityListingDraft) =>
+    request<CommunityCatalogResponse>("/api/community/listings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...draft,
+        workspace_id: ref.workspaceId,
+        project_id: ref.projectId,
+        object_id: ref.objectId,
+      }),
+    }),
+  deleteCommunityDraft: (listingId: string) =>
+    request<CommunityCatalogResponse>(`/api/community/listings/${listingId}`, {
+      method: "DELETE",
+    }),
+  scans: () => request<ScanCatalogResponse>("/api/scans"),
+  copyScan: (scanId: string, workspaceId: string, projectId: string, objectName: string) =>
+    request<ScanCopyResponse>(`/api/scans/${scanId}/copy`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workspace_id: workspaceId,
+        project_id: projectId,
+        object_name: objectName,
+      }),
     }),
   importModel: async (ref: ObjectRef, file: File) => {
     const body = new FormData();

@@ -1,0 +1,24 @@
+{
+  "id": "marul.trellis",
+  "name": "TRELLIS.2",
+  "publisher": "marul3D",
+  "version": "0.1.0",
+  "engines": { "marul3d": ">=0.1.0" },
+  "categories": ["AI Modeling"],
+  "activationEvents": ["onImageReference", "onAgentTool:trellis_generate"],
+  "main": "remote-worker",
+  "contributes": {
+    "agentTools": ["trellis_generate"],
+    "commands": ["trellis.generateFromImage"],
+    "assetTypes": ["model/gltf-binary"]
+  },
+  "authentication": {
+    "type": "endpoint-token",
+    "secretStorage": "macOS-keychain"
+  },
+  "permissions": [
+    "network:configured-endpoint",
+    "object:write-reference",
+    "agent:contribute-tool"
+  ]
+}

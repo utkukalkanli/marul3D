@@ -190,3 +190,99 @@ export type AgentStreamEvent =
   | { event: "delta"; data: { message_id: string; text: string } }
   | { event: "error"; data: { detail: string } }
   | { event: "done"; data: Record<string, never> };
+
+export type ExtensionPermission = {
+  id: string;
+  label: string;
+  description: string;
+};
+
+export type MarketplaceExtension = {
+  id: string;
+  name: string;
+  publisher: string;
+  description: string;
+  version: string;
+  category: string;
+  tags: string[];
+  capabilities: string[];
+  permissions: ExtensionPermission[];
+  featured: boolean;
+  verified: boolean;
+  installed: boolean;
+  enabled: boolean;
+  authenticated: boolean;
+  endpoint: string | null;
+};
+
+export type ExtensionCatalogResponse = {
+  extensions: MarketplaceExtension[];
+};
+
+export type CommunityCategory =
+  | "Mechanical"
+  | "Robotics"
+  | "Enclosures"
+  | "Architecture"
+  | "Aerospace"
+  | "Fixtures";
+
+export type CommunityListing = {
+  id: string;
+  name: string;
+  description: string;
+  creator: string;
+  category: CommunityCategory;
+  price_cents: number;
+  currency: "EUR" | "USD";
+  license: "personal" | "commercial" | "open";
+  formats: ("STEP" | "STL" | "GLB")[];
+  tags: string[];
+  rating: number;
+  review_count: number;
+  featured: boolean;
+  status: "published" | "draft";
+  source_object_name: string | null;
+  created_at: string;
+};
+
+export type CommunityCatalogResponse = {
+  categories: CommunityCategory[];
+  listings: CommunityListing[];
+  commerce_enabled: boolean;
+};
+
+export type CommunityListingDraft = {
+  name: string;
+  description: string;
+  category: CommunityCategory;
+  price_cents: number;
+  currency: "EUR" | "USD";
+  license: "personal" | "commercial" | "open";
+  tags: string[];
+};
+
+export type ScanAsset = {
+  id: string;
+  name: string;
+  status: "ready" | "processing" | "failed";
+  captured_at: string;
+  source_device: string;
+  image_count: number;
+  progress: number;
+  quality: "draft" | "standard" | "high";
+  triangle_count: number;
+  dimensions_mm: [number, number, number];
+  size_mb: number;
+  storage: "demo" | "local" | "cloud";
+};
+
+export type ScanCatalogResponse = {
+  scans: ScanAsset[];
+  account_mode: "local" | "synced";
+};
+
+export type ScanCopyResponse = {
+  hierarchy: HierarchyResponse;
+  object_id: string;
+};

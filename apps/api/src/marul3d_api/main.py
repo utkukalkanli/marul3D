@@ -11,7 +11,9 @@ from fastapi.responses import FileResponse, StreamingResponse
 from marul3d_api import __version__
 from marul3d_api.agent_service import AgentService
 from marul3d_api.build_engine import BuildError
+from marul3d_api.community_store import CommunityError, CommunityStore
 from marul3d_api.credentials import CredentialStore
+from marul3d_api.extension_store import ExtensionError, ExtensionStore
 from marul3d_api.hierarchy_store import HierarchyError, WorkspaceStore
 from marul3d_api.models import (
     AgentApplyResponse,
@@ -19,14 +21,23 @@ from marul3d_api.models import (
     AgentPromptRequest,
     BuildResponse,
     CadDocument,
+    CommunityCatalogResponse,
+    CommunityListingCreateRequest,
     CredentialRequest,
     EntityNameRequest,
+    ExtensionCatalogResponse,
+    ExtensionEnableRequest,
     GenerateRequest,
     HierarchyResponse,
     ProviderStatus,
+    ScanCatalogResponse,
+    ScanCopyRequest,
+    ScanCopyResponse,
+    TrellisConnectionRequest,
 )
 from marul3d_api.project_store import ProjectStore
 from marul3d_api.providers import OpenAIProvider
+from marul3d_api.scan_store import ScanError, ScanStore
 
 app = FastAPI(
     title="marul3D local API",
@@ -56,6 +67,21 @@ def get_credentials() -> CredentialStore:
 @lru_cache(maxsize=1)
 def get_agent_service() -> AgentService:
     return AgentService()
+
+
+@lru_cache(maxsize=1)
+def get_extension_store() -> ExtensionStore:
+    return ExtensionStore()
+
+
+@lru_cache(maxsize=1)
+def get_community_store() -> CommunityStore:
+    return CommunityStore()
+
+
+@lru_cache(maxsize=1)
+def get_scan_store() -> ScanStore:
+    return ScanStore()
 
 
 def _build_response(document: CadDocument, summary: str | None = None) -> BuildResponse:
@@ -445,3 +471,146 @@ def save_api_key(
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return ProviderStatus(provider=request.provider, configured=True, storage="keychain")
+
+
+@app.get("/api/community/listings", response_model=CommunityCatalogResponse)
+def community_catalog(
+    community: CommunityStore = Depends(get_community_store),
+) -> CommunityCatalogResponse:
+    return community.catalog()
+
+
+@app.post("/api/community/listings", response_model=CommunityCatalogResponse)
+def create_community_listing(
+    request: CommunityListingCreateRequest,
+    store: WorkspaceStore = Depends(get_store),
+    community: CommunityStore = Depends(get_community_store),
+) -> CommunityCatalogResponse:
+    object_store = _object_store(
+        store,
+        request.workspace_id,
+        request.project_id,
+        request.object_id,
+    )
+    return community.create_draft(request, object_store.document().name)
+
+
+@app.delete(
+    "/api/community/listings/{listing_id}", response_model=CommunityCatalogResponse
+)
+def delete_community_listing(
+    listing_id: str,
+    community: CommunityStore = Depends(get_community_store),
+) -> CommunityCatalogResponse:
+    try:
+        return community.delete_draft(listing_id)
+    except CommunityError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/scans", response_model=ScanCatalogResponse)
+def scan_catalog(scans: ScanStore = Depends(get_scan_store)) -> ScanCatalogResponse:
+    return scans.catalog()
+
+
+@app.post("/api/scans/{scan_id}/copy", response_model=ScanCopyResponse)
+def copy_scan_to_project(
+    scan_id: str,
+    request: ScanCopyRequest,
+    store: WorkspaceStore = Depends(get_store),
+    scans: ScanStore = Depends(get_scan_store),
+) -> ScanCopyResponse:
+    try:
+        asset = scans.asset(scan_id)
+        content = scans.stl_bytes(scan_id)
+    except ScanError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    try:
+        hierarchy = store.create_object(
+            request.workspace_id,
+            request.project_id,
+            request.object_name.strip(),
+        )
+        object_id = hierarchy.selected_object_id
+        if object_id is None:
+            raise HierarchyError("Could not create the scan object")
+        target = store.object_store(request.workspace_id, request.project_id, object_id)
+        target.import_file(f"{asset.id}.stl", content)
+        target.rename(request.object_name.strip())
+        return ScanCopyResponse(
+            hierarchy=store.hierarchy(request.workspace_id, request.project_id, object_id),
+            object_id=object_id,
+        )
+    except HierarchyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except BuildError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/extensions", response_model=ExtensionCatalogResponse)
+def extension_catalog(
+    extensions: ExtensionStore = Depends(get_extension_store),
+    credentials: CredentialStore = Depends(get_credentials),
+) -> ExtensionCatalogResponse:
+    return extensions.catalog(credentials)
+
+
+@app.post("/api/extensions/{extension_id}/install", response_model=ExtensionCatalogResponse)
+def install_extension(
+    extension_id: str,
+    extensions: ExtensionStore = Depends(get_extension_store),
+    credentials: CredentialStore = Depends(get_credentials),
+) -> ExtensionCatalogResponse:
+    try:
+        return extensions.install(extension_id, credentials)
+    except ExtensionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/api/extensions/{extension_id}", response_model=ExtensionCatalogResponse)
+def uninstall_extension(
+    extension_id: str,
+    extensions: ExtensionStore = Depends(get_extension_store),
+    credentials: CredentialStore = Depends(get_credentials),
+) -> ExtensionCatalogResponse:
+    try:
+        return extensions.uninstall(extension_id, credentials)
+    except (ExtensionError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.put("/api/extensions/{extension_id}/enabled", response_model=ExtensionCatalogResponse)
+def enable_extension(
+    extension_id: str,
+    request: ExtensionEnableRequest,
+    extensions: ExtensionStore = Depends(get_extension_store),
+    credentials: CredentialStore = Depends(get_credentials),
+) -> ExtensionCatalogResponse:
+    try:
+        return extensions.enable(extension_id, request.enabled, credentials)
+    except ExtensionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/extensions/marul.trellis/connect", response_model=ExtensionCatalogResponse)
+def connect_trellis(
+    request: TrellisConnectionRequest,
+    extensions: ExtensionStore = Depends(get_extension_store),
+    credentials: CredentialStore = Depends(get_credentials),
+) -> ExtensionCatalogResponse:
+    try:
+        return extensions.connect_trellis(request.endpoint, request.api_token, credentials)
+    except (ExtensionError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/extensions/marul.trellis/disconnect", response_model=ExtensionCatalogResponse)
+def disconnect_trellis(
+    extensions: ExtensionStore = Depends(get_extension_store),
+    credentials: CredentialStore = Depends(get_credentials),
+) -> ExtensionCatalogResponse:
+    try:
+        return extensions.disconnect_trellis(credentials)
+    except (ExtensionError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

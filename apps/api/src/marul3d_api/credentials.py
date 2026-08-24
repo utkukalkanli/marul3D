@@ -26,3 +26,11 @@ class CredentialStore:
             keyring.set_password(SERVICE_NAME, provider, api_key)
         except KeyringError as exc:
             raise RuntimeError("macOS Keychain is unavailable") from exc
+
+    def delete(self, provider: str) -> None:
+        try:
+            keyring.delete_password(SERVICE_NAME, provider)
+        except keyring.errors.PasswordDeleteError:
+            return
+        except KeyringError as exc:
+            raise RuntimeError("macOS Keychain is unavailable") from exc

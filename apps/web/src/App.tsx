@@ -1,5 +1,6 @@
 import {
   Box,
+  Blocks,
   Columns2,
   Download,
   FileUp,
@@ -11,6 +12,8 @@ import {
   Minimize2,
   PanelLeftOpen,
   Settings,
+  ScanLine,
+  Store,
 } from "lucide-react";
 import {
   ChangeEvent,
@@ -27,15 +30,23 @@ import { EntityDialog, type EntityDialogRequest } from "./components/EntityDialo
 import { FeatureDialog } from "./components/FeatureDialog";
 import { Inspector } from "./components/Inspector";
 import { LibraryBrowser } from "./components/LibraryBrowser";
+import { MarketplaceBrowser } from "./components/MarketplaceBrowser";
+import { CommunityBrowser } from "./components/CommunityBrowser";
+import { ScansBrowser } from "./components/ScansBrowser";
 import { SettingsDialog } from "./components/SettingsDialog";
 import type {
   BuildResponse,
   AgentConversation,
   CadDocument,
+  CommunityCategory,
+  CommunityListing,
+  CommunityListingDraft,
   DisplayUnit,
   Feature,
   HierarchyResponse,
+  MarketplaceExtension,
   ObjectRef,
+  ScanAsset,
 } from "./types";
 
 function errorMessage(error: unknown): string {
@@ -94,7 +105,7 @@ export default function App() {
   const [previewRevision, setPreviewRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const model = "gpt-5.6";
-  const [view, setView] = useState<"library" | "editor">("library");
+  const [view, setView] = useState<"library" | "editor" | "marketplace" | "community" | "scans">("library");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [displayUnit, setDisplayUnit] = useState<DisplayUnit>(savedDisplayUnit);
   const [centerMode, setCenterMode] = useState<"3d" | "agent" | "split">("split");
@@ -108,17 +119,32 @@ export default function App() {
   const [entityDialog, setEntityDialog] = useState<EntityDialogRequest | null>(null);
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [providerConfigured, setProviderConfigured] = useState(false);
+  const [extensions, setExtensions] = useState<MarketplaceExtension[]>([]);
+  const [communityListings, setCommunityListings] = useState<CommunityListing[]>([]);
+  const [communityCategories, setCommunityCategories] = useState<CommunityCategory[]>([]);
+  const [communityCommerceEnabled, setCommunityCommerceEnabled] = useState(false);
+  const [scans, setScans] = useState<ScanAsset[]>([]);
+  const [scanAccountMode, setScanAccountMode] = useState<"local" | "synced">("local");
   const importInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function start() {
       try {
-        const [nextHierarchy, status] = await Promise.all([
+        const [nextHierarchy, status, catalog, community, scanCatalog] = await Promise.all([
           api.hierarchy(),
           api.providerStatus(),
+          api.extensions(),
+          api.community(),
+          api.scans(),
         ]);
         setHierarchy(nextHierarchy);
         setProviderConfigured(status.configured);
+        setExtensions(catalog.extensions);
+        setCommunityListings(community.listings);
+        setCommunityCategories(community.categories);
+        setCommunityCommerceEnabled(community.commerce_enabled);
+        setScans(scanCatalog.scans);
+        setScanAccountMode(scanCatalog.account_mode);
         const ref = selectedRef(nextHierarchy);
         setSelection(ref);
         if (ref) {
@@ -443,6 +469,85 @@ export default function App() {
     setProviderConfigured(status.configured);
   }
 
+  async function extensionMutation(mutation: Promise<{ extensions: MarketplaceExtension[] }>) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setExtensions((await mutation).extensions);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function connectTrellis(endpoint: string, token: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      setExtensions((await api.connectTrellis(endpoint, token)).extensions);
+    } catch (caught) {
+      setError(errorMessage(caught));
+      throw caught;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createCommunityDraft(draft: CommunityListingDraft) {
+    if (!selection || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const catalog = await api.createCommunityDraft(selection, draft);
+      setCommunityListings(catalog.listings);
+      setCommunityCategories(catalog.categories);
+      setCommunityCommerceEnabled(catalog.commerce_enabled);
+    } catch (caught) {
+      setError(errorMessage(caught));
+      throw caught;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteCommunityDraft(listingId: string) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const catalog = await api.deleteCommunityDraft(listingId);
+      setCommunityListings(catalog.listings);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyScanToProject(scanId: string, workspaceId: string, projectId: string, name: string) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.copyScan(scanId, workspaceId, projectId, name);
+      setHierarchy(result.hierarchy);
+      const ref = selectedRef(result.hierarchy);
+      if (!ref) throw new Error("The copied scan object could not be selected");
+      setSelection(ref);
+      const [build, agent] = await Promise.all([api.document(ref), api.agentConversation(ref)]);
+      applyBuild(build, ref);
+      setConversation(agent);
+      setView("editor");
+    } catch (caught) {
+      setError(errorMessage(caught));
+      throw caught;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (initializing || !hierarchy) {
     return (
       <main className="loading-screen">
@@ -476,6 +581,12 @@ export default function App() {
         <div className="document-title">
           {view === "library" ? (
             <><LayoutGrid size={14} /><strong>CAD Library</strong></>
+          ) : view === "marketplace" ? (
+            <><Blocks size={14} /><strong>Extension Marketplace</strong></>
+          ) : view === "community" ? (
+            <><Store size={14} /><strong>Community CAD Market</strong></>
+          ) : view === "scans" ? (
+            <><ScanLine size={14} /><strong>Scans</strong></>
           ) : (
             <>
               <Box size={14} />
@@ -514,6 +625,9 @@ export default function App() {
           >
             <Layers3 size={21} />
           </button>
+          <button className={`activity ${view === "marketplace" ? "active" : ""}`} type="button" aria-label="Extension Marketplace" title="Extension Marketplace" onClick={() => setView("marketplace")}><Blocks size={21} /></button>
+          <button className={`activity ${view === "community" ? "active" : ""}`} type="button" aria-label="Community CAD Market" title="Community CAD Market" onClick={() => setView("community")}><Store size={21} /></button>
+          <button className={`activity ${view === "scans" ? "active" : ""}`} type="button" aria-label="Scans" title="Scans" onClick={() => setView("scans")}><ScanLine size={21} /></button>
           <span className="activity-spacer" />
           <span className={`provider-dot ${providerConfigured ? "connected" : ""}`} title="OpenAI connection" />
         </nav>
@@ -551,6 +665,35 @@ export default function App() {
             onDeleteObject={(ref, name) => {
               setEntityDialog({ kind: "delete", entity: "object", title: `Delete “${name}”?`, description: "This CAD object and its checkpoint history will be moved to marul3D’s local trash.", submitLabel: "Delete object", onSubmit: () => void applyHierarchyMutation(api.deleteObject(ref)) });
             }}
+          />
+        ) : view === "marketplace" ? (
+          <MarketplaceBrowser
+            extensions={extensions}
+            busy={busy}
+            onInstall={(id) => void extensionMutation(api.installExtension(id))}
+            onUninstall={(id) => void extensionMutation(api.uninstallExtension(id))}
+            onEnable={(id, enabled) => void extensionMutation(api.enableExtension(id, enabled))}
+            onConnectTrellis={connectTrellis}
+            onDisconnectTrellis={() => void extensionMutation(api.disconnectTrellis())}
+          />
+        ) : view === "community" ? (
+          <CommunityBrowser
+            listings={communityListings}
+            categories={communityCategories}
+            commerceEnabled={communityCommerceEnabled}
+            selectedObjectName={selectedObject?.name ?? null}
+            canCreateDraft={Boolean(selection && selectedObject)}
+            busy={busy}
+            onCreateDraft={createCommunityDraft}
+            onDeleteDraft={(listingId) => void deleteCommunityDraft(listingId)}
+          />
+        ) : view === "scans" ? (
+          <ScansBrowser
+            scans={scans}
+            hierarchy={hierarchy}
+            accountMode={scanAccountMode}
+            busy={busy}
+            onCopy={copyScanToProject}
           />
         ) : document && selection ? (
           <>
@@ -629,6 +772,8 @@ export default function App() {
         ) : null}
       </div>
 
+      {error && view !== "editor" && <div className="global-error-banner" role="alert">{error}</div>}
+
       <footer className="statusbar">
         <span><span className="status-dot" /> Local engine</span>
         <span>Parametric B-rep engine</span>
@@ -636,6 +781,7 @@ export default function App() {
         <span>{hierarchy.workspaces.length} workspaces</span>
         <span>{projectCount} projects</span>
         <span>{objectCount} objects</span>
+        <span>{extensions.filter((extension) => extension.installed).length} extensions</span>
         <span>macOS</span>
       </footer>
 

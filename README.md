@@ -20,6 +20,14 @@ and provider-neutral hosted model adapters.
 - Export rebuilt geometry to STEP or STL.
 - Keep CAD files local while calling hosted models with a user-owned API key.
 - Store provider credentials in macOS Keychain.
+- Use the conversational Marul Agent with clarification, streamed tool status,
+  validated feature proposals, and explicit Apply/Discard controls.
+- Browse a constrained extension marketplace and connect the TRELLIS.2 extension
+  to a user-configured remote GPU worker without shell or broad filesystem access.
+- Explore Community CAD listings with category and price filters, and create
+  private local seller drafts from the selected CAD object.
+- Browse ready/processing scan records and copy a ready scan into a chosen project
+  as an STL reference object.
 
 ## Prerequisites
 
@@ -55,6 +63,11 @@ data directory's `.trash` folder so they can be recovered manually.
 CAD source files and generated geometry stay on the Mac. The model provider
 receives the prompt and a compact JSON representation of the feature history.
 OpenAI requests use `store: false`. API keys are never returned to the browser.
+
+Community checkout, seller onboarding, publishing, mobile capture, and cross-device
+account sync are explicit hosted-service boundaries and are not simulated by the
+local MVP. See `docs/community-marketplace.md`, `docs/extension-system.md`, and
+`docs/scans-architecture.md` for the intended trust boundaries.
 
 Entire is enabled for Codex and syncs session checkpoints to the Git remote.
 Start future Codex sessions from this repository directory so its hooks can
