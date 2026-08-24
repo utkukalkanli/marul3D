@@ -24,6 +24,27 @@ class FeatureBase(StrictModel):
     id: str
     name: str
     enabled: bool = True
+    depends_on: list[str] = Field(default_factory=list)
+
+
+class SketchFeature(FeatureBase):
+    type: Literal["sketch"] = "sketch"
+    plane: Literal["XY", "XZ", "YZ"] = "XY"
+    profile: Literal["rectangle", "circle"] = "rectangle"
+    width: float = Field(default=40, gt=0)
+    height: float = Field(default=24, gt=0)
+    radius: float = Field(default=12, gt=0)
+    origin_x: float = 0
+    origin_y: float = 0
+    origin_z: float = 0
+
+
+class ExtrudeFeature(FeatureBase):
+    type: Literal["extrude"] = "extrude"
+    sketch_id: str
+    distance: float = Field(default=10, gt=0)
+    operation: Literal["new", "add", "cut"] = "new"
+    symmetric: bool = False
 
 
 class BoxFeature(FeatureBase):
@@ -77,7 +98,9 @@ class CustomCadQueryFeature(FeatureBase):
 
 
 Feature = (
-    BoxFeature
+    SketchFeature
+    | ExtrudeFeature
+    | BoxFeature
     | CylinderFeature
     | HolePatternFeature
     | FilletFeature
@@ -168,6 +191,7 @@ def sample_document() -> CadDocument:
             HolePatternFeature(
                 id="mounting-holes",
                 name="Mounting holes",
+                depends_on=["base-plate"],
                 diameter=4,
                 points=[
                     Point2D(x=-20, y=-10),
@@ -179,6 +203,7 @@ def sample_document() -> CadDocument:
             FilletFeature(
                 id="edge-fillet",
                 name="Edge fillet",
+                depends_on=["mounting-holes"],
                 radius=1.5,
                 selector="vertical",
             ),

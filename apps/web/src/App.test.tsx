@@ -45,6 +45,7 @@ vi.mock("./api", () => ({
             id: "base",
             name: "Base plate",
             enabled: true,
+            depends_on: [],
             type: "box",
             width: 50,
             depth: 30,
@@ -60,6 +61,13 @@ vi.mock("./api", () => ({
       summary: null,
     }),
     providerStatus: vi.fn().mockResolvedValue({ provider: "openai", configured: false, storage: "keychain" }),
+    updateDocument: vi.fn().mockImplementation((_ref, document) => Promise.resolve({
+      document: { ...document, revision: document.revision + 1 },
+      preview_revision: document.revision + 1,
+      summary: null,
+    })),
+    undo: vi.fn(),
+    redo: vi.fn(),
     createWorkspace: vi.fn().mockResolvedValue({
       workspaces: [{ id: "workspace-2", name: "Factory", projects: [] }],
       selected_workspace_id: "workspace-2",
@@ -132,4 +140,29 @@ test("renames a project in the styled dialog", async () => {
     expect(api.renameProject).toHaveBeenCalledWith("workspace-1", "project-1", "Motion Platform");
   });
   expect(await screen.findByText("Motion Platform")).toBeInTheDocument();
+});
+
+test("adds and suppresses parametric features from feature history", async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByText("Design Workspace"));
+  fireEvent.click(await screen.findByText("Robot Project"));
+  fireEvent.click(await screen.findByText("Test plate"));
+
+  const addButton = await screen.findByLabelText("Add feature");
+  await waitFor(() => expect(addButton).not.toBeDisabled());
+  fireEvent.click(addButton);
+  const dialog = screen.getByRole("dialog", { name: "Add feature" });
+  expect(dialog).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Top profile" } });
+  fireEvent.submit(dialog.querySelector("form")!);
+
+  await waitFor(() => expect(api.updateDocument).toHaveBeenCalled());
+  expect((await screen.findAllByText("Top profile")).length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByLabelText("Suppress Top profile"));
+  await waitFor(() => {
+    const calls = vi.mocked(api.updateDocument).mock.calls;
+    const latest = calls.at(-1)?.[1];
+    expect(latest?.features.find((feature) => feature.name === "Top profile")?.enabled).toBe(false);
+  });
+  expect(screen.getByLabelText("Unsuppress Top profile")).toBeInTheDocument();
 });

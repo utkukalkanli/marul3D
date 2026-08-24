@@ -1,10 +1,10 @@
-import { AlertTriangle, Box, Folder, Layers3, X } from "lucide-react";
+import { AlertTriangle, Box, Folder, GitBranch, Layers3, X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 export type EntityDialogRequest =
   | {
       kind: "name";
-      entity: "workspace" | "project" | "object";
+      entity: "workspace" | "project" | "object" | "feature";
       title: string;
       label: string;
       initialValue: string;
@@ -13,7 +13,7 @@ export type EntityDialogRequest =
     }
   | {
       kind: "delete";
-      entity: "workspace" | "project" | "object";
+      entity: "workspace" | "project" | "object" | "feature";
       title: string;
       description: string;
       submitLabel: string;
@@ -24,6 +24,7 @@ const entityCopy = {
   workspace: { kicker: "WORKSPACE", icon: Layers3 },
   project: { kicker: "PROJECT", icon: Folder },
   object: { kicker: "CAD OBJECT", icon: Box },
+  feature: { kicker: "FEATURE", icon: GitBranch },
 };
 
 export function EntityDialog({

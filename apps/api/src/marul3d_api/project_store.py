@@ -32,6 +32,7 @@ class ProjectStore:
         self.imports.mkdir(exist_ok=True)
         self.exports.mkdir(exist_ok=True)
         self.document_path = self.root / "document.json"
+        self.history_path = self.root / "history.json"
         self.preview_path = self.root / "preview.stl"
         self._lock = threading.RLock()
         self._undo: list[CadDocument] = []
@@ -40,6 +41,7 @@ class ProjectStore:
             initial_document.model_copy(deep=True) if initial_document else None
         )
         self._document = self._load()
+        self._load_history()
         self._ensure_preview()
 
     def _load(self) -> CadDocument:
@@ -54,6 +56,31 @@ class ProjectStore:
             encoding="utf-8",
         )
         temporary.replace(self.document_path)
+
+    def _load_history(self) -> None:
+        if not self.history_path.exists():
+            return
+        try:
+            payload = json.loads(self.history_path.read_text(encoding="utf-8"))
+            self._undo = [CadDocument.model_validate(item) for item in payload.get("undo", [])]
+            self._redo = [CadDocument.model_validate(item) for item in payload.get("redo", [])]
+        except (OSError, ValueError, TypeError):
+            self._undo = []
+            self._redo = []
+
+    def _write_history(self) -> None:
+        temporary = self.history_path.with_suffix(".json.tmp")
+        temporary.write_text(
+            json.dumps(
+                {
+                    "undo": [item.model_dump(mode="json") for item in self._undo[-100:]],
+                    "redo": [item.model_dump(mode="json") for item in self._redo[-100:]],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        temporary.replace(self.history_path)
 
     def _ensure_preview(self) -> None:
         if self.preview_path.exists():
@@ -90,6 +117,7 @@ class ProjectStore:
                 self._document = next_document
                 temporary_preview.replace(self.preview_path)
                 self._write_document()
+                self._write_history()
             finally:
                 temporary_preview.unlink(missing_ok=True)
             return self.document()
@@ -120,6 +148,7 @@ class ProjectStore:
                 self._document = imported
                 shutil.copy2(asset_path, self.preview_path)
                 self._write_document()
+                self._write_history()
                 return self.document()
         imported = CadDocument(
             id=f"import-{uuid.uuid4().hex[:8]}",

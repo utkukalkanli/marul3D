@@ -9,8 +9,10 @@ from marul3d_api.build_engine import (
 from marul3d_api.models import (
     CadDocument,
     CustomCadQueryFeature,
+    ExtrudeFeature,
     HolePatternFeature,
     Point2D,
+    SketchFeature,
     sample_document,
 )
 
@@ -92,3 +94,81 @@ def test_hole_pattern_reports_points_outside_the_solid() -> None:
         assert "does not intersect" in str(exc)
     else:
         raise AssertionError("Expected an invalid hole point to fail")
+
+
+def test_sketch_extrude_and_hole_build_a_parametric_part() -> None:
+    document = CadDocument(
+        id="parametric-part",
+        features=[
+            SketchFeature(
+                id="base-sketch",
+                name="Base sketch",
+                profile="rectangle",
+                width=40,
+                height=24,
+            ),
+            ExtrudeFeature(
+                id="base-extrude",
+                name="Base extrude",
+                sketch_id="base-sketch",
+                depends_on=["base-sketch"],
+                distance=8,
+            ),
+            HolePatternFeature(
+                id="center-hole",
+                name="Center hole",
+                depends_on=["base-extrude"],
+                diameter=5,
+                points=[Point2D(x=0, y=0)],
+            ),
+        ],
+    )
+
+    result = build_document(document)
+
+    assert result.val().isValid()
+    assert result.val().Volume() < 40 * 24 * 8
+    assert result.faces().size() > 6
+
+
+def test_dependency_must_appear_before_child() -> None:
+    document = CadDocument(
+        features=[
+            ExtrudeFeature(
+                id="extrude",
+                name="Extrude",
+                sketch_id="sketch",
+                distance=8,
+            ),
+            SketchFeature(id="sketch", name="Sketch"),
+        ]
+    )
+
+    try:
+        build_document(document)
+    except BuildError as exc:
+        assert "must appear after" in str(exc)
+    else:
+        raise AssertionError("Expected invalid dependency order to fail")
+
+
+def test_enabled_child_rejects_suppressed_parent() -> None:
+    document = CadDocument(
+        features=[
+            SketchFeature(id="sketch", name="Sketch", enabled=False),
+            ExtrudeFeature(
+                id="extrude",
+                name="Extrude",
+                sketch_id="sketch",
+                depends_on=["sketch"],
+                distance=8,
+            ),
+        ]
+    )
+
+    try:
+        build_document(document)
+    except BuildError as exc:
+        assert "suppressed" in str(exc)
+    else:
+        raise AssertionError("Expected suppressed dependency to fail")

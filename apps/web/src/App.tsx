@@ -25,6 +25,7 @@ import { api } from "./api";
 import { CadViewport } from "./components/CadViewport";
 import { EditorSidebar } from "./components/EditorSidebar";
 import { EntityDialog, type EntityDialogRequest } from "./components/EntityDialog";
+import { FeatureDialog } from "./components/FeatureDialog";
 import { Inspector } from "./components/Inspector";
 import { LibraryBrowser } from "./components/LibraryBrowser";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -32,6 +33,7 @@ import type {
   BuildResponse,
   CadDocument,
   DisplayUnit,
+  Feature,
   HierarchyResponse,
   ObjectRef,
 } from "./types";
@@ -66,6 +68,27 @@ function savedDisplayUnit(): DisplayUnit {
   }
 }
 
+function featureDependencies(feature: Feature): string[] {
+  return feature.type === "extrude"
+    ? [...new Set([...(feature.depends_on ?? []), feature.sketch_id])]
+    : feature.depends_on ?? [];
+}
+
+function descendantIds(features: Feature[], rootId: string): Set<string> {
+  const descendants = new Set([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const feature of features) {
+      if (!descendants.has(feature.id) && featureDependencies(feature).some((id) => descendants.has(id))) {
+        descendants.add(feature.id);
+        changed = true;
+      }
+    }
+  }
+  return descendants;
+}
+
 export default function App() {
   const [hierarchy, setHierarchy] = useState<HierarchyResponse | null>(null);
   const [selection, setSelection] = useState<ObjectRef | null>(null);
@@ -84,6 +107,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [entityDialog, setEntityDialog] = useState<EntityDialogRequest | null>(null);
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [providerConfigured, setProviderConfigured] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -258,7 +282,6 @@ export default function App() {
       !selection ||
       !selectedFeature ||
       !Number.isFinite(value) ||
-      value <= 0 ||
       busy
     ) {
       return;
@@ -266,9 +289,14 @@ export default function App() {
     const candidate = structuredClone(document);
     const feature = candidate.features.find((item) => item.id === selectedFeature.id);
     if (!feature) return;
+    const positiveKeys = new Set(["width", "depth", "height", "radius", "diameter", "distance"]);
+    if (positiveKeys.has(key) && value <= 0) return;
     if (key.startsWith("parameters.") && feature.type === "custom_cadquery") {
       const index = Number(key.split(".")[1]);
       feature.parameters[index].value = value;
+    } else if (key.startsWith("points.") && feature.type === "hole_pattern") {
+      const [, index, axis] = key.split(".");
+      feature.points[Number(index)][axis as "x" | "y"] = value;
     } else {
       (feature as unknown as Record<string, unknown>)[key] = value;
     }
@@ -281,6 +309,71 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function commitFeatureDocument(candidate: CadDocument, selectAfter?: string) {
+    if (!selection || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      applyBuild(await api.updateDocument(selection, candidate), selection);
+      if (selectAfter) setSelectedId(selectAfter);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function addFeature(feature: Feature) {
+    if (!document) return;
+    const candidate = structuredClone(document);
+    candidate.features.push(feature);
+    void commitFeatureDocument(candidate, feature.id);
+  }
+
+  function deleteFeature(feature: Feature) {
+    if (!document) return;
+    const removed = descendantIds(document.features, feature.id);
+    const childCount = removed.size - 1;
+    setEntityDialog({
+      kind: "delete",
+      entity: "feature",
+      title: `Delete “${feature.name}”?`,
+      description: childCount
+        ? `This also deletes ${childCount} dependent ${childCount === 1 ? "feature" : "features"}. The entire operation can be restored with Undo.`
+        : "This feature will be removed from the model. You can restore it with Undo.",
+      submitLabel: childCount ? `Delete ${removed.size} features` : "Delete feature",
+      onSubmit: () => {
+        const candidate = structuredClone(document);
+        candidate.features = candidate.features.filter((item) => !removed.has(item.id));
+        void commitFeatureDocument(candidate);
+      },
+    });
+  }
+
+  function toggleFeatureSuppressed(feature: Feature) {
+    if (!document) return;
+    const candidate = structuredClone(document);
+    const affected = feature.enabled
+      ? descendantIds(candidate.features, feature.id)
+      : new Set([feature.id]);
+    candidate.features.forEach((item) => {
+      if (affected.has(item.id)) item.enabled = !feature.enabled;
+    });
+    void commitFeatureDocument(candidate, feature.id);
+  }
+
+  function reorderFeature(sourceId: string, targetId: string) {
+    if (!document) return;
+    const candidate = structuredClone(document);
+    const sourceIndex = candidate.features.findIndex((feature) => feature.id === sourceId);
+    if (sourceIndex < 0) return;
+    const [moved] = candidate.features.splice(sourceIndex, 1);
+    const targetIndex = candidate.features.findIndex((feature) => feature.id === targetId);
+    if (targetIndex < 0) return;
+    candidate.features.splice(targetIndex, 0, moved);
+    void commitFeatureDocument(candidate, sourceId);
   }
 
   async function importModel(event: ChangeEvent<HTMLInputElement>) {
@@ -444,6 +537,10 @@ export default function App() {
                 onToggle={() => setSidebarOpen(false)}
                 onUndo={() => void historyAction("undo")}
                 onRedo={() => void historyAction("redo")}
+                onAdd={() => setFeatureDialogOpen(true)}
+                onDelete={deleteFeature}
+                onToggleSuppressed={toggleFeatureSuppressed}
+                onReorder={reorderFeature}
               />
             )}
             <main
@@ -573,6 +670,13 @@ export default function App() {
       )}
       {entityDialog && (
         <EntityDialog request={entityDialog} onClose={() => setEntityDialog(null)} />
+      )}
+      {featureDialogOpen && document && (
+        <FeatureDialog
+          features={document.features}
+          onClose={() => setFeatureDialogOpen(false)}
+          onCreate={addFeature}
+        />
       )}
     </div>
   );

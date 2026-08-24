@@ -16,8 +16,13 @@ Return a complete candidate CadDocument that satisfies the user's request.
 Rules:
 - Preserve existing feature IDs for unchanged features.
 - Use millimetres.
-- Prefer standard features: box, cylinder, hole_pattern, and fillet.
+- Prefer standard features: sketch, extrude, box, cylinder, hole_pattern, and fillet.
 - Features execute in list order and must produce a valid solid.
+- Give every dependent feature a `depends_on` list of feature IDs. A dependency
+  must appear earlier in the feature list. Use sketch → extrude → later edits for
+  editable parametric parts. An extrude's `sketch_id` must reference its sketch.
+- A sketch is a rectangle or circle on XY, XZ, or YZ. It defines a profile but
+  does not create a solid until an extrude consumes it.
 - A box or cylinder with operation=new must establish the initial solid.
 - hole_pattern points use global XY coordinates and cut along the -Z axis. They
   work on planar or curved bodies. Every point must be inside the body's XY

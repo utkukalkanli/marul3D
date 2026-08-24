@@ -6,6 +6,27 @@ type FeatureBase = {
   id: string;
   name: string;
   enabled: boolean;
+  depends_on: string[];
+};
+
+export type SketchFeature = FeatureBase & {
+  type: "sketch";
+  plane: "XY" | "XZ" | "YZ";
+  profile: "rectangle" | "circle";
+  width: number;
+  height: number;
+  radius: number;
+  origin_x: number;
+  origin_y: number;
+  origin_z: number;
+};
+
+export type ExtrudeFeature = FeatureBase & {
+  type: "extrude";
+  sketch_id: string;
+  distance: number;
+  operation: "new" | "add" | "cut";
+  symmetric: boolean;
 };
 
 export type BoxFeature = FeatureBase & {
@@ -54,6 +75,8 @@ export type CustomFeature = FeatureBase & {
 };
 
 export type Feature =
+  | SketchFeature
+  | ExtrudeFeature
   | BoxFeature
   | CylinderFeature
   | HolePatternFeature

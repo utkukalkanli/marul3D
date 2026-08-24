@@ -15,10 +15,12 @@ from marul3d_api.models import (
     CadDocument,
     CustomCadQueryFeature,
     CylinderFeature,
+    ExtrudeFeature,
     FilletFeature,
     HolePatternFeature,
     ImportStepFeature,
     ImportStlFeature,
+    SketchFeature,
 )
 
 
@@ -181,14 +183,60 @@ def _run_custom_feature(
 
 
 def build_document(document: CadDocument) -> cq.Workplane:
+    feature_by_id = {feature.id: feature for feature in document.features}
+    if len(feature_by_id) != len(document.features):
+        raise BuildError("Feature IDs must be unique")
+
+    completed: set[str] = set()
+    for feature in document.features:
+        dependencies = list(feature.depends_on)
+        if isinstance(feature, ExtrudeFeature) and feature.sketch_id not in dependencies:
+            dependencies.append(feature.sketch_id)
+        for dependency_id in dependencies:
+            dependency = feature_by_id.get(dependency_id)
+            if dependency is None:
+                raise BuildError(
+                    f"Feature {feature.name!r} depends on missing feature {dependency_id!r}"
+                )
+            if dependency_id not in completed:
+                raise BuildError(
+                    f"Feature {feature.name!r} must appear after its dependency "
+                    f"{dependency.name!r}"
+                )
+            if feature.enabled and not dependency.enabled:
+                raise BuildError(
+                    f"Feature {feature.name!r} cannot run while dependency "
+                    f"{dependency.name!r} is suppressed"
+                )
+        completed.add(feature.id)
+
     current: cq.Workplane | None = None
+    sketches: dict[str, cq.Workplane] = {}
     with tempfile.TemporaryDirectory(prefix="marul3d-build-") as temporary:
         work_dir = Path(temporary)
         for feature in document.features:
             if not feature.enabled:
                 continue
             try:
-                if isinstance(feature, BoxFeature):
+                if isinstance(feature, SketchFeature):
+                    sketch = cq.Workplane(
+                        feature.plane,
+                        origin=(feature.origin_x, feature.origin_y, feature.origin_z),
+                    )
+                    if feature.profile == "rectangle":
+                        sketch = sketch.rect(feature.width, feature.height)
+                    else:
+                        sketch = sketch.circle(feature.radius)
+                    sketches[feature.id] = sketch
+                elif isinstance(feature, ExtrudeFeature):
+                    sketch = sketches.get(feature.sketch_id)
+                    if sketch is None:
+                        raise BuildError(
+                            f"Extrude requires enabled sketch {feature.sketch_id!r}"
+                        )
+                    tool = sketch.extrude(feature.distance, both=feature.symmetric)
+                    current = _apply_boolean(current, tool, feature.operation)
+                elif isinstance(feature, BoxFeature):
                     tool = cq.Workplane(
                         "XY", origin=(feature.x, feature.y, feature.z)
                     ).box(

@@ -1,7 +1,7 @@
 import { SlidersHorizontal } from "lucide-react";
 import type { DisplayUnit, Feature } from "../types";
 
-type EditableNumber = { key: string; label: string; value: number; unit?: string };
+type EditableNumber = { key: string; label: string; value: number; unit?: string; positive?: boolean };
 
 const millimetresPerUnit: Record<DisplayUnit, number> = {
   mm: 1,
@@ -17,6 +17,19 @@ function displayValue(value: number, unit: string | undefined, displayUnit: Disp
 
 function numericFields(feature: Feature): EditableNumber[] {
   switch (feature.type) {
+    case "sketch":
+      return [...(feature.profile === "circle"
+        ? [{ key: "radius", label: "Radius", value: feature.radius, unit: "mm" }]
+        : [
+            { key: "width", label: "Width", value: feature.width, unit: "mm" },
+            { key: "height", label: "Height", value: feature.height, unit: "mm" },
+          ]),
+        { key: "origin_x", label: "Origin X", value: feature.origin_x, unit: "mm", positive: false },
+        { key: "origin_y", label: "Origin Y", value: feature.origin_y, unit: "mm", positive: false },
+        { key: "origin_z", label: "Origin Z", value: feature.origin_z, unit: "mm", positive: false },
+      ];
+    case "extrude":
+      return [{ key: "distance", label: "Distance", value: feature.distance, unit: "mm" }];
     case "box":
       return [
         { key: "width", label: "Width", value: feature.width, unit: "mm" },
@@ -29,7 +42,11 @@ function numericFields(feature: Feature): EditableNumber[] {
         { key: "height", label: "Height", value: feature.height, unit: "mm" },
       ];
     case "hole_pattern":
-      return [{ key: "diameter", label: "Diameter", value: feature.diameter, unit: "mm" }];
+      return [
+        { key: "diameter", label: "Diameter", value: feature.diameter, unit: "mm" },
+        { key: "points.0.x", label: "Position X", value: feature.points[0].x, unit: "mm", positive: false },
+        { key: "points.0.y", label: "Position Y", value: feature.points[0].y, unit: "mm", positive: false },
+      ];
     case "fillet":
       return [{ key: "radius", label: "Radius", value: feature.radius, unit: "mm" }];
     case "custom_cadquery":
@@ -93,7 +110,7 @@ export function Inspector({
                   <input
                     aria-label={field.label}
                     type="number"
-                    min="0.001"
+                    min={field.positive === false ? undefined : "0.001"}
                     step={displayUnit === "inch" && isLength ? "0.01" : "0.1"}
                     value={displayValue(field.value, field.unit, displayUnit)}
                     disabled={disabled}
