@@ -1,0 +1,42 @@
+[project]
+name = "marul3d-api"
+version = "0.1.0"
+description = "Local CAD and model-provider service for marul3D"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "cadquery>=2.6.0,<2.7",
+  "fastapi>=0.116,<1",
+  "keyring>=25.6,<26",
+  "openai>=1.101,<3",
+  "platformdirs>=4.3,<5",
+  "pydantic>=2.11,<3",
+  "python-multipart>=0.0.20,<1",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28,<1",
+  "pytest>=8.4,<9",
+  "ruff>=0.12,<1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/marul3d_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]

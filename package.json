@@ -1,0 +1,27 @@
+{
+  "name": "marul3d",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,cyan \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "cd apps/api && .venv/bin/uvicorn marul3d_api.main:app --reload --port 8000",
+    "dev:web": "npm --workspace @marul3d/web run dev",
+    "build": "npm --workspace @marul3d/web run build",
+    "test": "npm run test:web && npm run test:api",
+    "test:web": "npm --workspace @marul3d/web run test",
+    "test:api": "cd apps/api && .venv/bin/pytest",
+    "lint": "npm run lint:web && npm run lint:api",
+    "lint:web": "npm --workspace @marul3d/web run lint",
+    "lint:api": "cd apps/api && .venv/bin/ruff check src tests",
+    "setup": "npm install && cd apps/api && uv sync --python 3.12"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
