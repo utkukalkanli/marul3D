@@ -34,7 +34,11 @@ import { LibraryBrowser } from "./components/LibraryBrowser";
 import { MarketplaceBrowser } from "./components/MarketplaceBrowser";
 import { CommunityBrowser } from "./components/CommunityBrowser";
 import { ScansBrowser } from "./components/ScansBrowser";
-import { SettingsDialog } from "./components/SettingsDialog";
+import {
+  SettingsDialog,
+  type ThemeId,
+  type ThemePreference,
+} from "./components/SettingsDialog";
 import type {
   BuildResponse,
   AgentConversation,
@@ -78,6 +82,25 @@ function savedDisplayUnit(): DisplayUnit {
   }
 }
 
+function savedThemePreference(): ThemePreference {
+  try {
+    const saved = window.localStorage?.getItem("marul3d.theme");
+    return saved === "adaptive" || saved === "cyberpunk" || saved === "aerospace" || saved === "kawaii"
+      ? saved
+      : "marul";
+  } catch {
+    return "marul";
+  }
+}
+
+function adaptiveTheme(context: string): ThemeId {
+  const normalized = context.toLocaleLowerCase();
+  if (/labubu|kawaii|cute|toy|character|figurine|plush|doll|chibi/.test(normalized)) return "kawaii";
+  if (/aero|aircraft|airplane|aviation|flight|wing|turbine|drone|uav|rocket|spacecraft/.test(normalized)) return "aerospace";
+  if (/cyber|robot|mech|neon|sci.?fi|futur|android|drone/.test(normalized)) return "cyberpunk";
+  return "marul";
+}
+
 function featureDependencies(feature: Feature): string[] {
   return feature.type === "extrude"
     ? [...new Set([...(feature.depends_on ?? []), feature.sketch_id])]
@@ -110,6 +133,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [displayUnit, setDisplayUnit] = useState<DisplayUnit>(savedDisplayUnit);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(savedThemePreference);
   const [centerMode, setCenterMode] = useState<"3d" | "agent" | "split">("split");
   const [agentMaximized, setAgentMaximized] = useState(false);
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
@@ -269,6 +293,22 @@ export default function App() {
     () => document?.features.find((feature) => feature.id === selectedId) ?? null,
     [document, selectedId],
   );
+  const projectContext = useMemo(() => [
+    selectedWorkspace?.name,
+    selectedProject?.name,
+    selectedObject?.name,
+    document?.name,
+    ...document?.features.map((feature) => `${feature.name} ${feature.type}`) ?? [],
+  ].filter(Boolean).join(" · ") || "No CAD object selected", [selectedWorkspace, selectedProject, selectedObject, document]);
+  const resolvedTheme = useMemo<ThemeId>(
+    () => themePreference === "adaptive" ? adaptiveTheme(projectContext) : themePreference,
+    [themePreference, projectContext],
+  );
+
+  useEffect(() => {
+    window.document.documentElement.dataset.theme = resolvedTheme;
+    window.document.documentElement.dataset.themePreference = themePreference;
+  }, [resolvedTheme, themePreference]);
 
   async function sendAgentPrompt(nextPrompt: string) {
     if (!nextPrompt.trim() || busy || !selection || !document) return;
@@ -796,7 +836,23 @@ export default function App() {
       </footer>
 
       {settingsOpen && (
-        <SettingsDialog configured={providerConfigured} onClose={() => setSettingsOpen(false)} onSave={saveApiKey} />
+        <SettingsDialog
+          configured={providerConfigured}
+          theme={themePreference}
+          resolvedTheme={resolvedTheme}
+          projectContext={projectContext}
+          agentRequestCount={conversation?.messages.filter((message) => message.role === "user").length ?? 0}
+          onThemeChange={(theme) => {
+            setThemePreference(theme);
+            try {
+              window.localStorage?.setItem("marul3d.theme", theme);
+            } catch {
+              // Storage can be unavailable in privacy-restricted browser contexts.
+            }
+          }}
+          onClose={() => setSettingsOpen(false)}
+          onSave={saveApiKey}
+        />
       )}
       {entityDialog && (
         <EntityDialog request={entityDialog} onClose={() => setEntityDialog(null)} />

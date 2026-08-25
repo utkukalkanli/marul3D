@@ -72,6 +72,7 @@ vi.mock("./api", () => ({
     applyAgentProposal: vi.fn(),
     discardAgentProposal: vi.fn(),
     providerStatus: vi.fn().mockResolvedValue({ provider: "openai", configured: false, storage: "keychain" }),
+    saveApiKey: vi.fn().mockResolvedValue({ provider: "openai", configured: true, storage: "keychain" }),
     extensions: vi.fn().mockResolvedValue({
       extensions: [{
         id: "marul.trellis",
@@ -353,4 +354,33 @@ test("copies a ready scan into a selected project", async () => {
     "Ceramic vase scan",
   ));
   expect(await screen.findByLabelText("CAD prompt")).toBeInTheDocument();
+});
+
+test("shows account, usage, billing, and adaptive appearance settings", async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+
+  expect(screen.getByText("Your marul3D identity")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Usage & API" }));
+  expect(screen.getByText("Models, credits, and credentials")).toBeInTheDocument();
+  expect(screen.getByText("0 of 0 credits available in local mode")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Billing" }));
+  expect(screen.getByRole("button", { name: "Upgrade with Stripe" })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Appearance" }));
+  fireEvent.click(screen.getByRole("button", { name: "Aerospace theme" }));
+  await waitFor(() => expect(document.documentElement.dataset.theme).toBe("aerospace"));
+  expect(window.localStorage.getItem("marul3d.theme")).toBe("aerospace");
+
+  fireEvent.click(screen.getByRole("button", { name: "Adaptive theme" }));
+  await waitFor(() => expect(document.documentElement.dataset.theme).toBe("cyberpunk"));
+  expect(screen.getByText("Adaptive → cyberpunk")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Marul theme" }));
+  await waitFor(() => expect(document.documentElement.dataset.theme).toBe("marul"));
+  window.localStorage.removeItem("marul3d.theme");
 });

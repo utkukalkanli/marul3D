@@ -23,6 +23,10 @@ and provider-neutral hosted model adapters.
 - Export rebuilt geometry to STEP or STL.
 - Keep CAD files local while calling hosted models with a user-owned API key.
 - Store provider credentials in macOS Keychain.
+- Manage local account state, provider usage visibility, subscription plans, and
+  billing boundaries from a unified Settings control center.
+- Choose Marul, Aerospace, Cyberpunk, or Kawaii appearance themes, or let a local
+  adaptive mode derive the theme from the selected CAD context.
 - Use the conversational Marul Agent with clarification, streamed tool status,
   validated feature proposals, and explicit Apply/Discard controls.
 - Browse a constrained extension marketplace and connect the TRELLIS.2 extension
@@ -70,7 +74,8 @@ OpenAI requests use `store: false`. API keys are never returned to the browser.
 Community checkout, seller onboarding, publishing, mobile capture, and cross-device
 account sync are explicit hosted-service boundaries and are not simulated by the
 local MVP. See `docs/community-marketplace.md`, `docs/extension-system.md`, and
-`docs/scans-architecture.md` for the intended trust boundaries.
+`docs/scans-architecture.md` for the intended trust boundaries. Account and Stripe
+service boundaries are described in `docs/account-billing-and-themes.md`.
 
 Entire is enabled for Codex and syncs session checkpoints to the Git remote.
 Start future Codex sessions from this repository directory so its hooks can
